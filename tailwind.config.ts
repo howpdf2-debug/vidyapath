@@ -8,7 +8,9 @@ const config: Config = {
   theme: {
     extend: {},
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),   // ← यह लाइन जोड़ें
+  ],
 }
 
 export default config
