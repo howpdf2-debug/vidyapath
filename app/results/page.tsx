@@ -1,7 +1,60 @@
 export const dynamic = 'force-static';
 
 import Link from 'next/link';
-import { Calendar, CheckCircle, ExternalLink, FileText, GraduationCap, Trophy, Users } from 'lucide-react';
+
+// Type definitions for the ResultCard props
+interface ResultCardProps {
+  title: string;
+  status: string;
+  statusColor: string;
+  statusPulse?: boolean;
+  date: string;
+  link: string;
+  icon: string;
+  bg: string;
+}
+
+// Type definitions for the AdmitCard props
+interface AdmitCardProps {
+  title: string;
+  status: string;
+  link: string;
+  icon: string;
+  bg: string;
+}
+
+// Component for Result Cards
+function ResultCard({ title, status, statusColor, statusPulse = false, date, link, icon, bg }: ResultCardProps) {
+  return (
+    <div className={`${bg} rounded-xl border p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition`}>
+      <div className="text-4xl">{icon}</div>
+      <div className="flex-1">
+        <div className="font-bold text-gray-800">{title}</div>
+        <div className={`text-xs font-semibold ${statusColor} ${statusPulse ? 'animate-pulse' : ''}`}>{status}</div>
+        <div className="text-xs text-gray-500 mt-1">{date}</div>
+      </div>
+      <a href={link} target="_blank" rel="nofollow noopener noreferrer" className="bg-purple-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-purple-700">
+        Check →
+      </a>
+    </div>
+  );
+}
+
+// Component for Admit Cards
+function AdmitCard({ title, status, link, icon, bg }: AdmitCardProps) {
+  return (
+    <div className={`${bg} rounded-xl border p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition`}>
+      <div className="text-4xl">{icon}</div>
+      <div className="flex-1">
+        <div className="font-bold text-gray-800 dark:text-white">{title}</div>
+        <div className="text-xs font-semibold text-red-600 animate-pulse">{status}</div>
+      </div>
+      <a href={link} target="_blank" rel="nofollow noopener noreferrer" className="bg-green-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-green-700">
+        Download →
+      </a>
+    </div>
+  );
+}
 
 export default function ResultsPage() {
   return (
@@ -219,39 +272,6 @@ export default function ResultsPage() {
         <span className="text-amber-600 text-lg">ℹ️</span>
         <div><strong>Disclaimer:</strong> All links redirect to official exam boards, NTA, SSC, IBPS, UPSC, and other government portals. We are not responsible for third-party content or availability.</div>
       </div>
-    </div>
-  );
-}
-
-// Component for Result Cards
-function ResultCard({ title, status, statusColor, statusPulse = false, date, link, icon, bg }) {
-  return (
-    <div className={`${bg} rounded-xl border p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition`}>
-      <div className="text-4xl">{icon}</div>
-      <div className="flex-1">
-        <div className="font-bold text-gray-800">{title}</div>
-        <div className={`text-xs font-semibold ${statusColor} ${statusPulse ? 'animate-pulse' : ''}`}>{status}</div>
-        <div className="text-xs text-gray-500 mt-1">{date}</div>
-      </div>
-      <a href={link} target="_blank" rel="nofollow noopener noreferrer" className="bg-purple-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-purple-700">
-        Check →
-      </a>
-    </div>
-  );
-}
-
-// Component for Admit Cards
-function AdmitCard({ title, status, link, icon, bg }) {
-  return (
-    <div className={`${bg} rounded-xl border p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition`}>
-      <div className="text-4xl">{icon}</div>
-      <div className="flex-1">
-        <div className="font-bold text-gray-800 dark:text-white">{title}</div>
-        <div className="text-xs font-semibold text-red-600 animate-pulse">{status}</div>
-      </div>
-      <a href={link} target="_blank" rel="nofollow noopener noreferrer" className="bg-green-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-green-700">
-        Download →
-      </a>
     </div>
   );
 }
