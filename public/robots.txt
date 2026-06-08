@@ -1,0 +1,13 @@
+# *
+User-agent: *
+Allow: /
+
+# *
+User-agent: *
+Disallow: /api/
+
+# Host
+Host: https://vidyapath.bhaihelp.in
+
+# Sitemaps
+Sitemap: https://vidyapath.bhaihelp.in/sitemap.xml
