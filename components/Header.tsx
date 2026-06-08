@@ -23,9 +23,8 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md shadow-sm border-b border-orange-100">
-      <nav className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+      <nav className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2">
           <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-md">
             <span className="text-white text-xl">📚</span>
           </div>
@@ -34,13 +33,12 @@ export default function Header() {
           </span>
         </Link>
 
-        {/* Desktop Navigation – now wraps, no horizontal scroll */}
-        <div className="hidden md:flex flex-wrap justify-center gap-1 bg-gray-50/50 p-1 rounded-full flex-1">
+        <div className="hidden md:flex gap-1 bg-gray-50/50 p-1 rounded-full">
           {navLinks.map(link => (
             <Link
               key={link.href}
               href={link.href}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-full text-gray-700 hover:bg-gradient-to-r hover:from-orange-100 hover:to-pink-100 transition whitespace-nowrap"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full text-gray-700 hover:bg-gradient-to-r hover:from-orange-100 hover:to-pink-100 transition"
             >
               <span>{link.icon}</span>
               <span>{link.label}</span>
@@ -48,13 +46,11 @@ export default function Header() {
           ))}
         </div>
 
-        {/* Mobile menu button */}
         <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 rounded-full bg-orange-50">
           <Menu size={22} className="text-orange-600" />
         </button>
       </nav>
 
-      {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
