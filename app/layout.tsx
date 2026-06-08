@@ -23,8 +23,8 @@ export default function RootLayout({
   return (
     <html lang="hi">
       <head>
-        {/* Google Search Console verification (replace with your actual meta tag) */}
-        <meta name="google-site-verification" content="YOUR_VERIFICATION_CODE" />
+        {/* Google Search Console verification meta tag */}
+        <meta name="google-site-verification" content="115l3tNyRiX3r1IlsP732O7joUZQ2Ia4fWxtF-SW21o" />
 
         {/* Google Analytics 4 */}
         <Script
