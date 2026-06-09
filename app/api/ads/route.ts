@@ -1,4 +1,4 @@
-// app/ads.txt/route.ts
+// app/api/ads/route.ts
 export const dynamic = 'force-static';
 
 export async function GET() {
