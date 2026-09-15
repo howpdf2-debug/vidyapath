@@ -36,7 +36,7 @@ export async function generateMetadata({
       .from('ncert')
       .select('chapter_title')
       .eq('class', parseInt(classNum, 10))
-      .eq('subject', decodeURIComponent(params.subject))
+      .eq('subject', subjectName)
       .eq('chapter_num', parseInt(chapterNum, 10))
       .eq('language', lang)
       .maybeSingle()
@@ -59,15 +59,17 @@ export default async function ChapterPage({
   searchParams: { lang?: string }
 }) {
   const classNum = parseInt(params.class, 10)
-  const subject = decodeURIComponent(params.subject)
   const chapterNum = parseInt(params.chapter, 10)
   const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
-  const subjectName = subject
+  // ⚠️ FIX: Capitalize subject for DB match
+  const subject = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
+
+  const subjectName = subject
 
   const supabaseServer = createServerClient()
 
