@@ -26,11 +26,12 @@ export function ProgressButton({
 
       setUserId(session.user.id)
 
+      // ✅ FIX: ncert_id (not chapter_id)
       const { data } = await supabase
         .from('progress')
         .select('completed')
         .eq('user_id', session.user.id)
-        .eq('chapter_id', chapterId)
+        .eq('ncert_id', chapterId)
         .maybeSingle()
 
       setCompleted(data?.completed || false)
@@ -46,11 +47,17 @@ export function ProgressButton({
     }
 
     setLoading(true)
-    const { error } = await supabase.from('progress').upsert({
-      user_id: userId,
-      chapter_id: chapterId,
-      completed: !completed,
-    })
+
+    // ✅ FIX: ncert_id (not chapter_id)
+    const { error } = await supabase.from('progress').upsert(
+      {
+        user_id: userId,
+        ncert_id: chapterId,
+        completed: !completed,
+        last_accessed: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,ncert_id' }
+    )
 
     if (error) {
       toast.error(error.message)
@@ -65,17 +72,13 @@ export function ProgressButton({
     <button
       onClick={toggleComplete}
       disabled={loading}
-      className={`px-4 py-2 rounded-xl transition disabled:opacity-50 ${
+      className={`px-4 py-2 rounded-xl transition disabled:opacity-50 text-sm font-medium ${
         completed
           ? 'bg-emerald-600 text-white hover:bg-emerald-700'
           : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
       }`}
     >
-      {loading
-        ? '...'
-        : completed
-          ? '✅ Completed'
-          : '☑️ Mark as Complete'}
+      {loading ? '...' : completed ? '✅ Completed' : '☑️ Mark Complete'}
     </button>
   )
 }

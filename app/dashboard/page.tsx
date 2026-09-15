@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
+import {
+  Loader2,
+  BookOpen,
+  Bookmark,
+  CheckCircle2,
+  TrendingUp,
+  User,
+  ArrowRight,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ProgressBar } from '@/components/ProgressBar'
 
@@ -20,7 +28,6 @@ export default function DashboardPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        // ✅ Client-side — reads session from localStorage
         const {
           data: { user },
           error,
@@ -32,7 +39,6 @@ export default function DashboardPage() {
           return
         }
 
-        // ✅ Check email verification
         const isConfirmed = Boolean(
           user.email_confirmed_at || user.confirmed_at
         )
@@ -49,7 +55,7 @@ export default function DashboardPage() {
 
         setUser(user)
 
-        // Fetch stats in parallel
+        // ✅ FIX: ncert_id (not chapter_id)
         const [bookmarksRes, progressRes] = await Promise.all([
           supabase
             .from('bookmarks')
@@ -57,7 +63,7 @@ export default function DashboardPage() {
             .eq('user_id', user.id),
           supabase
             .from('progress')
-            .select('chapter_id, completed')
+            .select('ncert_id, completed')
             .eq('user_id', user.id),
         ])
 
@@ -115,104 +121,201 @@ export default function DashboardPage() {
 
   const displayName = getDisplayName()
   const initial = getInitial()
+  const completionPercentage = stats.totalChapters > 0
+    ? Math.round((stats.completedChapters / stats.totalChapters) * 100)
+    : 0
 
   // ==================== RENDER ====================
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
-          {initial}
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-3xl font-bold truncate">
-            Welcome, {displayName}!
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm truncate">
-            {user.email}
-          </p>
-        </div>
-      </div>
+      {/* ═══════════════════════════════════════════ */}
+      {/* WELCOME HEADER */}
+      {/* ═══════════════════════════════════════════ */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-6 md:p-8 text-white">
+        <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <StatBox
-          number={stats.totalChapters}
-          label="Total Chapters"
-          icon="📚"
-        />
-        <StatBox
-          number={stats.completedChapters}
-          label="Completed"
-          icon="✅"
-        />
-        <StatBox
-          number={stats.bookmarks}
-          label="Bookmarks"
-          icon="🔖"
-        />
-      </div>
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl md:text-3xl font-bold flex-shrink-0 border-2 border-white/30">
+              {initial}
+            </div>
+            <div className="min-w-0">
+              <p className="text-white/80 text-sm">Welcome back,</p>
+              <h1 className="text-2xl md:text-3xl font-bold truncate">
+                {displayName}!
+              </h1>
+              <p className="text-white/70 text-xs md:text-sm truncate mt-1">
+                {user.email}
+              </p>
+            </div>
+          </div>
 
-      {/* Progress */}
-      <div className="bg-white/60 dark:bg-gray-800/60 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg">
+          <Link
+            href="/profile"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm text-sm font-medium hover:bg-white/30 transition flex-shrink-0"
+          >
+            <User className="w-4 h-4" />
+            Profile
+          </Link>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* STATS */}
+      {/* ═══════════════════════════════════════════ */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          Your Progress
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard
+            icon={BookOpen}
+            label="Total Chapters"
+            value={stats.totalChapters}
+            color="from-blue-500 to-cyan-500"
+          />
+          <StatCard
+            icon={CheckCircle2}
+            label="Completed"
+            value={stats.completedChapters}
+            color="from-green-500 to-emerald-500"
+          />
+          <StatCard
+            icon={Bookmark}
+            label="Bookmarks"
+            value={stats.bookmarks}
+            color="from-purple-500 to-pink-500"
+          />
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* PROGRESS BAR */}
+      {/* ═══════════════════════════════════════════ */}
+      <section className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            Learning Progress
+          </h2>
+          <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+            {completionPercentage}%
+          </span>
+        </div>
+
         <ProgressBar
           completed={stats.completedChapters}
           total={stats.totalChapters}
         />
-      </div>
 
-      {/* Quick Links */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link
-          href="/bookmarks"
-          className="bg-white/60 dark:bg-gray-800/60 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-xl transition"
-        >
-          <h2 className="text-xl font-bold">📌 My Bookmarks</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            View all your saved chapters
+        {stats.totalChapters === 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-4">
+            Start reading chapters to track your progress 📚
           </p>
-        </Link>
-        <Link
-          href="/ncert"
-          className="bg-white/60 dark:bg-gray-800/60 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 hover:shadow-xl transition"
-        >
-          <h2 className="text-xl font-bold">📖 Continue Learning</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            Pick up where you left off
-          </p>
-        </Link>
-      </div>
+        )}
+      </section>
 
-      {/* Profile link */}
-      <div className="text-center">
-        <Link
-          href="/profile"
-          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-        >
-          Edit your profile →
-        </Link>
+      {/* ═══════════════════════════════════════════ */}
+      {/* QUICK ACTIONS */}
+      {/* ═══════════════════════════════════════════ */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          Quick Actions
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ActionCard
+            href="/bookmarks"
+            icon={Bookmark}
+            title="My Bookmarks"
+            description="View all your saved chapters"
+            gradient="from-purple-500 to-pink-500"
+          />
+          <ActionCard
+            href="/ncert"
+            icon={BookOpen}
+            title="Continue Learning"
+            description="Pick up where you left off"
+            gradient="from-indigo-500 to-blue-500"
+          />
+        </div>
+      </section>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════
+// STAT CARD
+// ═══════════════════════════════════════════
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: any
+  label: string
+  value: number
+  color: string
+}) {
+  return (
+    <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 hover:shadow-lg transition">
+      <div
+        className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${color} text-white mb-3 shadow-md`}
+      >
+        <Icon className="w-5 h-5" />
+      </div>
+      <div className="text-3xl font-bold text-gray-900 dark:text-white">
+        {value}
+      </div>
+      <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        {label}
       </div>
     </div>
   )
 }
 
-// ==================== STAT BOX ====================
-function StatBox({
-  number,
-  label,
-  icon,
+// ═══════════════════════════════════════════
+// ACTION CARD
+// ═══════════════════════════════════════════
+function ActionCard({
+  href,
+  icon: Icon,
+  title,
+  description,
+  gradient,
 }: {
-  number: number
-  label: string
-  icon: string
+  href: string
+  icon: any
+  title: string
+  description: string
+  gradient: string
 }) {
   return (
-    <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-6 text-center">
-      <div className="text-3xl">{icon}</div>
-      <div className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">
-        {number}
+    <Link
+      href={href}
+      className="group bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 hover:shadow-xl hover:scale-[1.02] transition-all"
+    >
+      <div className="flex items-start gap-4">
+        <div
+          className={`flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white shadow-md group-hover:scale-110 transition`}
+        >
+          <Icon className="w-6 h-6" />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
+            {title}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {description}
+          </p>
+          <span className="inline-flex items-center gap-1 mt-3 text-sm font-medium text-indigo-600 dark:text-indigo-400 group-hover:gap-2 transition-all">
+            Open
+            <ArrowRight className="w-4 h-4" />
+          </span>
+        </div>
       </div>
-      <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-    </div>
+    </Link>
   )
 }

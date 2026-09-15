@@ -1,18 +1,20 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { FileText, ArrowLeft } from 'lucide-react'
+import { FileText, Download, ChevronRight, Home, BookOpen } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
-import { getServerSession } from '@/lib/auth'
+import { getServerSession, isUserConfirmed } from '@/lib/auth'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { BookmarkButton } from '@/components/BookmarkButton'
 import { ShareButton } from '@/components/ShareButton'
 import { CommentSection } from '@/components/CommentSection'
 import { Breadcrumb } from '@/components/Breadcrumb'
+import { BackButton } from '@/components/BackButton'
 import { ProgressButton } from './ProgressButton'
+import { getPdfUrl } from '@/lib/pdf'
 
-// ==================== SEO METADATA ====================
+// ==================== SEO ====================
 export async function generateMetadata({
   params,
   searchParams,
@@ -21,14 +23,12 @@ export async function generateMetadata({
   searchParams: { lang?: string }
 }): Promise<Metadata> {
   const classNum = params.class
-  const subject = decodeURIComponent(params.subject)
-  const subjectName = subject
+  const subjectName = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
   const chapterNum = params.chapter
-  const lang = searchParams.lang || 'english'
+  const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
-  // Try to fetch chapter title for better metadata
   let chapterTitle = `Chapter ${chapterNum}`
   try {
     const supabase = createServerClient()
@@ -36,42 +36,32 @@ export async function generateMetadata({
       .from('ncert')
       .select('chapter_title')
       .eq('class', parseInt(classNum, 10))
-      .eq('subject', subject)
+      .eq('subject', decodeURIComponent(params.subject))
       .eq('chapter_num', parseInt(chapterNum, 10))
       .eq('language', lang)
       .maybeSingle()
     if (data?.chapter_title) chapterTitle = data.chapter_title
-  } catch {
-    // fallback to default chapter title
-  }
+  } catch {}
 
   return buildMetadata({
-    title: `Class ${classNum} ${subjectName} Chapter ${chapterNum}: ${chapterTitle} – NCERT Solutions | VidyaPath`,
-    description: `Free NCERT solutions and study notes for Class ${classNum} ${subjectName} Chapter ${chapterNum} (${chapterTitle}). Detailed explanations, important questions, and PDF downloads.`,
+    title: `Class ${classNum} ${subjectName} ${chapterTitle} – NCERT Solutions | VidyaPath`,
+    description: `Free NCERT solutions for Class ${classNum} ${subjectName} ${chapterTitle}.`,
     path: `/ncert/${params.class}/${params.subject}/${params.chapter}`,
-    keywords: [
-      `class ${classNum} ${subjectName} chapter ${chapterNum}`,
-      chapterTitle,
-      `${subjectName} ncert solutions`,
-      `class ${classNum} ${subjectName} notes`,
-      'ncert free solutions',
-    ],
   })
 }
 
-// ==================== PAGE COMPONENT ====================
+// ==================== PAGE ====================
 export default async function ChapterPage({
   params,
   searchParams,
 }: {
   params: { class: string; subject: string; chapter: string }
-  searchParams: { level?: string; lang?: string }
+  searchParams: { lang?: string }
 }) {
   const classNum = parseInt(params.class, 10)
   const subject = decodeURIComponent(params.subject)
   const chapterNum = parseInt(params.chapter, 10)
-  const level = searchParams.level || 'all'
-  const lang = searchParams.lang || 'english'
+  const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
@@ -81,10 +71,9 @@ export default async function ChapterPage({
 
   const supabaseServer = createServerClient()
 
-  // ===== Fetch chapter =====
   const { data: chapter, error: chapterError } = await supabaseServer
     .from('ncert')
-    .select('*')
+    .select('id, class, chapter_num, chapter_title, book_code, pdf_url, language')
     .eq('class', classNum)
     .eq('subject', subject)
     .eq('chapter_num', chapterNum)
@@ -93,67 +82,54 @@ export default async function ChapterPage({
 
   if (chapterError || !chapter) notFound()
 
-  // ===== Fetch notes =====
-  let query = supabaseServer
+  const { data: notes } = await supabaseServer
     .from('chapter_notes')
     .select('*')
-    .eq('class', classNum)
-    .eq('subject', subject)
-    .eq('chapter_num', chapterNum)
+    .eq('ncert_id', chapter.id)
     .order('order_index', { ascending: true })
 
-  if (level !== 'all') {
-    query = query.eq('difficulty_level', level)
-  }
-
-  const { data: notes } = await query
-
-  // ===== Bookmark check =====
   const session = await getServerSession()
+  const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
+
   let isBookmarked = false
-  if (session?.user) {
+  if (isLoggedIn) {
     const { data: bookmark } = await supabaseServer
       .from('bookmarks')
       .select('id')
-      .eq('user_id', session.user.id)
-      .eq('chapter_id', chapter.id)
+      .eq('user_id', session!.user.id)
+      .eq('ncert_id', chapter.id)
       .maybeSingle()
     if (bookmark) isBookmarked = true
   }
 
-  // ===== JSON-LD schema =====
   const canonicalUrl = `${SITE_URL}/ncert/${params.class}/${params.subject}/${params.chapter}`
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LearningResource',
-    name: `Class ${classNum} ${subjectName} Chapter ${chapterNum}: ${chapter.chapter_title}`,
-    description: `Free NCERT notes and study material for Class ${classNum} ${subjectName} Chapter ${chapterNum} (${lang})`,
+    name: `Class ${classNum} ${subjectName} Chapter ${chapterNum}`,
+    description: `NCERT notes for Class ${classNum} ${subjectName} Chapter ${chapterNum}`,
     educationalLevel: `Class ${classNum}`,
-    inLanguage: lang === 'hindi' ? 'hi' : 'en',
+    inLanguage: lang === 'hi' ? 'hi' : 'en',
     url: canonicalUrl,
-    learningResourceType: 'Study Notes',
-    provider: {
-      '@type': 'Organization',
-      name: 'VidyaPath',
-      url: SITE_URL,
-    },
   }
 
-  // ===== PDF URL from NCERT =====
-  const pdfUrl = chapter.book_code
-    ? `https://ncert.nic.in/textbook/pdf/${chapter.book_code}.pdf`
-    : null
+  const pdfUrl =
+    chapter.pdf_url || getPdfUrl(chapter.book_code, classNum, chapterNum)
 
   return (
     <>
-      {/* JSON-LD structured data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
       <div className="space-y-6">
-        {/* Breadcrumb */}
+        <BackButton
+          href={`/ncert/${classNum}/${encodeURIComponent(subject)}?lang=${lang}`}
+          label="Back to chapters"
+          language={lang}
+        />
+
         <Breadcrumb
           items={[
             { label: 'Home', href: '/' },
@@ -167,136 +143,96 @@ export default async function ChapterPage({
           ]}
         />
 
-        {/* Back + Language toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link
-            href={`/ncert/${classNum}/${encodeURIComponent(subject)}?lang=${lang}`}
-            className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to chapters
-          </Link>
-          <LanguageToggle />
-        </div>
-
-        {/* Header */}
-        <div className="flex flex-wrap justify-between items-start gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">
-              Class {classNum} {subjectName} – Chapter {chapterNum}
-            </h1>
-            <h2 className="text-xl text-gray-600 dark:text-gray-300 mt-1">
-              {chapter.chapter_title}
-            </h2>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {session?.user && (
-              <BookmarkButton
-                chapterId={chapter.id}
-                initialBookmarked={isBookmarked}
-              />
-            )}
-            {pdfUrl && (
-              <a
-                href={pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition flex items-center gap-2 shadow-lg shadow-indigo-500/30"
-              >
-                <FileText className="w-5 h-5" /> Download PDF
-              </a>
-            )}
-            <ShareButton
-              title={`Class ${classNum} ${subjectName} Chapter ${chapterNum}`}
-              url={canonicalUrl}
-            />
-            <ProgressButton
-              chapterId={chapter.id}
-              isLoggedIn={!!session?.user}
-            />
-          </div>
-        </div>
-
-        {/* Difficulty Filter */}
-        <div className="flex gap-2 flex-wrap">
-          <FilterLink
-            href={`?level=all&lang=${lang}`}
-            active={level === 'all'}
-          >
-            All
-          </FilterLink>
-          <FilterLink
-            href={`?level=easy&lang=${lang}`}
-            active={level === 'easy'}
-          >
-            🟢 Easy
-          </FilterLink>
-          <FilterLink
-            href={`?level=medium&lang=${lang}`}
-            active={level === 'medium'}
-          >
-            🟡 Medium
-          </FilterLink>
-          <FilterLink
-            href={`?level=hard&lang=${lang}`}
-            active={level === 'hard'}
-          >
-            🔴 Hard
-          </FilterLink>
-        </div>
-
-        {/* Notes */}
-        <div className="space-y-6">
-          {notes?.map((note) => (
-            <div
-              key={note.id}
-              className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-6"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold">{note.topic}</h3>
-                <span className="text-xs bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-full capitalize">
-                  {note.difficulty_level}
-                </span>
+        <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 p-6 md:p-8 text-white">
+          <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+          <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-4 flex-1 min-w-0">
+              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm flex-shrink-0 border border-white/30">
+                <BookOpen className="w-8 h-8" />
               </div>
-              <div
-                className="prose prose-lg dark:prose-invert mt-2 max-w-none"
-                dangerouslySetInnerHTML={{ __html: note.content_html }}
-              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white/80">
+                  Class {classNum} • {subjectName} • Chapter {chapterNum}
+                </p>
+                <h1 className="text-2xl md:text-3xl font-bold mt-1 break-words">
+                  {chapter.chapter_title}
+                </h1>
+              </div>
             </div>
-          ))}
-          {(!notes || notes.length === 0) && (
-            <p className="text-gray-500 dark:text-gray-400">
-              No notes available for this filter.
-            </p>
+            <LanguageToggle />
+          </div>
+        </header>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {isLoggedIn && (
+            <BookmarkButton
+              chapterId={chapter.id}
+              initialBookmarked={isBookmarked}
+            />
+          )}
+          {isLoggedIn && (
+            <ProgressButton chapterId={chapter.id} isLoggedIn={true} />
+          )}
+          {pdfUrl && (
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-500/30 text-sm font-medium"
+            >
+              <Download className="w-4 h-4" /> Download PDF
+            </a>
+          )}
+          <ShareButton
+            title={`Class ${classNum} ${subjectName} Chapter ${chapterNum}`}
+            url={canonicalUrl}
+          />
+        </div>
+
+        <div className="space-y-6">
+          {notes && notes.length > 0 ? (
+            notes.map((note: any) => (
+              <div
+                key={note.id}
+                className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-6"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <h3 className="text-xl font-semibold flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-emerald-600" />
+                    {note.topic}
+                  </h3>
+                  {note.difficulty_level && (
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full capitalize ${
+                        note.difficulty_level === 'easy'
+                          ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
+                          : note.difficulty_level === 'medium'
+                            ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400'
+                            : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                      }`}
+                    >
+                      {note.difficulty_level}
+                    </span>
+                  )}
+                </div>
+                <div
+                  className="prose prose-lg dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: note.content_html }}
+                />
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12 bg-white/60 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400">
+                📝 Notes coming soon for this chapter.
+              </p>
+            </div>
           )}
         </div>
 
-        {/* Comments */}
         <CommentSection chapterId={chapter.id} />
       </div>
     </>
-  )
-}
-
-// ==================== Helper Component ====================
-function FilterLink({
-  href,
-  active,
-  children,
-}: {
-  href: string
-  active: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <Link
-      href={href}
-      className={`px-4 py-2 rounded-full text-sm font-medium transition ${
-        active
-          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-          : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-      }`}
-    >
-      {children}
-    </Link>
   )
 }

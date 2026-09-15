@@ -1,63 +1,86 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Bookmark } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-export function BookmarkButton({ chapterId, initialBookmarked }: { chapterId: number; initialBookmarked: boolean }) {
-  const [isBookmarked, setIsBookmarked] = useState(initialBookmarked)
+export function BookmarkButton({
+  chapterId,
+  initialBookmarked,
+}: {
+  chapterId: number
+  initialBookmarked: boolean
+}) {
+  const [bookmarked, setBookmarked] = useState(initialBookmarked)
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
 
   const toggleBookmark = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    setLoading(true)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
       toast.error('Please login to bookmark')
+      setLoading(false)
       return
     }
 
-    setLoading(true)
-    if (isBookmarked) {
+    if (bookmarked) {
+      // Remove bookmark
+      // ✅ FIX: ncert_id
       const { error } = await supabase
         .from('bookmarks')
         .delete()
-        .eq('user_id', user.id)
-        .eq('chapter_id', chapterId)
-      if (!error) {
-        setIsBookmarked(false)
-        toast.success('Bookmark removed')
+        .eq('user_id', session.user.id)
+        .eq('ncert_id', chapterId)
+
+      if (error) {
+        toast.error(error.message)
       } else {
-        toast.error('Failed to remove bookmark')
+        setBookmarked(false)
+        toast.success('Bookmark removed')
       }
     } else {
-      const { error } = await supabase
-        .from('bookmarks')
-        .insert({ user_id: user.id, chapter_id: chapterId })
-      if (!error) {
-        setIsBookmarked(true)
-        toast.success('Bookmark added')
+      // Add bookmark
+      // ✅ FIX: ncert_id
+      const { error } = await supabase.from('bookmarks').insert({
+        user_id: session.user.id,
+        ncert_id: chapterId,
+      })
+
+      if (error) {
+        if (error.code === '23505') {
+          setBookmarked(true)
+          toast.success('Already bookmarked')
+        } else {
+          toast.error(error.message)
+        }
       } else {
-        toast.error('Failed to add bookmark')
+        setBookmarked(true)
+        toast.success('Bookmarked!')
       }
     }
     setLoading(false)
-    router.refresh()
   }
 
   return (
     <button
       onClick={toggleBookmark}
       disabled={loading}
-      className={`p-2 rounded-full transition ${
-        isBookmarked
-          ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/50'
-          : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
-      } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-      aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
+      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl transition disabled:opacity-50 text-sm font-medium ${
+        bookmarked
+          ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/60'
+          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+      }`}
+      aria-label={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
     >
-      <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
+      <Bookmark
+        className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`}
+      />
+      {bookmarked ? 'Bookmarked' : 'Bookmark'}
     </button>
   )
 }

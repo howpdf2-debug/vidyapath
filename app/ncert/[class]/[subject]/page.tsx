@@ -4,17 +4,24 @@ import { notFound } from 'next/navigation'
 import {
   BookOpen,
   FileText,
-  ArrowRight,
   ChevronRight,
   Home,
   Download,
+  ArrowRight,
   Clock,
   AlertCircle,
+  Calculator,
+  Atom,
+  FlaskConical,
+  Dna,
 } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
 import { buildMetadata } from '@/lib/seo'
+import { LanguageToggle } from '@/components/LanguageToggle'
+import { BackButton } from '@/components/BackButton'
+import { getPdfUrl, hasTwoParts } from '@/lib/pdf'
 
-// ==================== SEO METADATA ====================
+// ==================== SEO ====================
 export async function generateMetadata({
   params,
 }: {
@@ -27,67 +34,83 @@ export async function generateMetadata({
 
   return buildMetadata({
     title: `Class ${classNum} ${subjectName} NCERT Solutions – Free PDF | VidyaPath`,
-    description: `Free NCERT solutions for Class ${classNum} ${subjectName}. Chapter-wise notes, exercises, and PDF downloads based on latest CBSE syllabus. Access all chapters in one place.`,
+    description: `Free NCERT solutions for Class ${classNum} ${subjectName}. Chapter-wise notes, exercises, and PDF downloads.`,
     path: `/ncert/${params.class}/${params.subject}`,
     keywords: [
       `class ${classNum} ${subjectName}`,
       `ncert ${subjectName} class ${classNum}`,
       `${subjectName} solutions class ${classNum}`,
-      `class ${classNum} ${subjectName} notes`,
       'ncert solutions free',
-      'ncert pdf download',
     ],
   })
 }
 
-// ==================== PAGE COMPONENT ====================
+// ==================== SUBJECT META ====================
+const SUBJECT_META: Record<string, { icon: any; gradient: string }> = {
+  Mathematics: { icon: Calculator, gradient: 'from-blue-500 to-cyan-500' },
+  Science: { icon: Atom, gradient: 'from-green-500 to-emerald-500' },
+  Physics: { icon: Atom, gradient: 'from-purple-500 to-indigo-500' },
+  Chemistry: { icon: FlaskConical, gradient: 'from-orange-500 to-red-500' },
+  Biology: { icon: Dna, gradient: 'from-pink-500 to-rose-500' },
+}
+
+// ==================== PAGE ====================
 export default async function NCERTSubjectPage({
   params,
+  searchParams,
 }: {
   params: { class: string; subject: string }
+  searchParams: { lang?: string }
 }) {
-  // Decode params
   const classNum = parseInt(params.class, 10)
   const subject = decodeURIComponent(params.subject)
+  const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
+
+  if (isNaN(classNum)) notFound()
+
   const subjectName = subject
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
 
-  // Validate class number
-  if (isNaN(classNum)) {
-    notFound()
+  const subjectMeta = SUBJECT_META[subject] || {
+    icon: BookOpen,
+    gradient: 'from-indigo-500 to-purple-500',
   }
+  const SubjectIcon = subjectMeta.icon
+  const twoParts = hasTwoParts(classNum, subject)
 
   const supabase = createServerClient()
 
-  // ===== Fetch chapters from `ncert` table =====
   const { data: chapters, error } = await supabase
     .from('ncert')
-    .select('id, class, subject, chapter_num, chapter_title, pdf_url')
+    .select('id, class, subject, chapter_num, chapter_title, book_code, language')
     .eq('class', classNum)
     .eq('subject', subject)
+    .eq('language', lang)
     .order('chapter_num', { ascending: true })
 
-  // ===== Handle DB Error =====
+  // ==================== ERROR STATE ====================
   if (error) {
-    console.error('Supabase error:', error)
+    console.error('[ncert/subject] Error:', error)
     return (
-      <div className="max-w-4xl mx-auto py-12 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/40 mb-4">
+      <div className="max-w-4xl mx-auto py-12 text-center space-y-4">
+        <BackButton
+          href={`/ncert/${classNum}`}
+          label="Back to Class"
+          language={lang}
+        />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/40">
           <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
         </div>
         <h1 className="text-2xl font-bold">
-          Class {classNum} {subjectName} NCERT Solutions
+          Class {classNum} {subjectName}
         </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-3">
+        <p className="text-gray-500 dark:text-gray-400">
           ⚠️ Could not load chapters at the moment.
-        </p>
-        <p className="text-sm text-gray-400 mt-1">
-          Please try refreshing or check back later.
         </p>
         <Link
           href="/ncert"
-          className="inline-flex items-center gap-2 mt-6 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition"
         >
           <Home className="w-4 h-4" />
           Back to NCERT
@@ -96,71 +119,138 @@ export default async function NCERTSubjectPage({
     )
   }
 
-  // ===== Empty State =====
+  // ==================== EMPTY STATE ====================
   if (!chapters || chapters.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-          <Link href="/" className="hover:text-indigo-600 dark:hover:text-indigo-400">
-            Home
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <Link href="/ncert" className="hover:text-indigo-600 dark:hover:text-indigo-400">
-            NCERT
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <Link
-            href={`/ncert/${params.class}`}
-            className="hover:text-indigo-600 dark:hover:text-indigo-400"
-          >
-            Class {classNum}
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-gray-700 dark:text-gray-300 font-medium">
-            {subjectName}
-          </span>
-        </nav>
-
-        <h1 className="text-3xl md:text-4xl font-bold">
-          Class {classNum} {subjectName}
-        </h1>
-
-        <div className="text-center py-12 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700">
-          <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-500 dark:text-gray-400 text-lg">
+      <div className="max-w-4xl mx-auto py-12 space-y-6">
+        <BackButton
+          href={`/ncert/${classNum}`}
+          label="Back to Class"
+          language={lang}
+        />
+        <div className="text-center py-16 bg-white/60 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
+          <BookOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold">
+            Class {classNum} {subjectName}
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">
             📭 Chapters coming soon
           </p>
-          <p className="text-sm text-gray-400 mt-2">
-            Content is being added. Check back later.
-          </p>
           <Link
-            href="/ncert"
+            href={`/ncert/${classNum}`}
             className="inline-flex items-center gap-2 mt-6 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition"
           >
-            <Home className="w-4 h-4" />
-            Browse Other Subjects
+            <Home className="w-4 h-4" /> Back to Class
           </Link>
         </div>
       </div>
     )
   }
 
-  // ===== Normal View =====
+  const totalChapters = chapters.length
+
+  // Group chapters by part (if 2-part book)
+  const part1Chapters = twoParts
+    ? chapters.filter((ch) => ch.book_code?.endsWith('1'))
+    : chapters
+  const part2Chapters = twoParts
+    ? chapters.filter((ch) => ch.book_code?.endsWith('2'))
+    : []
+
+  // ==================== CHAPTER CARD ====================
+  const ChapterCard = ({
+    ch,
+    partLabel,
+  }: {
+    ch: any
+    partLabel?: string
+  }) => {
+    const pdfUrl = getPdfUrl(ch.book_code, classNum, ch.chapter_num)
+    const chapterHref = `/ncert/${classNum}/${encodeURIComponent(
+      subject
+    )}/${ch.chapter_num}?lang=${lang}`
+
+    return (
+      <div className="group relative bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-300 overflow-hidden">
+        <div className="p-5">
+          <Link
+            href={chapterHref}
+            className="flex items-start gap-3 mb-4 group/link"
+          >
+            <div
+              className={`flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${subjectMeta.gradient} flex items-center justify-center font-bold text-white text-lg shadow-md group-hover/link:scale-105 transition`}
+            >
+              {ch.chapter_num}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  {lang === 'hi' ? 'अध्याय' : 'Chapter'} {ch.chapter_num}
+                </p>
+                {partLabel && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 uppercase tracking-wide">
+                    {partLabel}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white leading-tight line-clamp-2 mt-0.5 group-hover/link:text-indigo-600 dark:group-hover/link:text-indigo-400 transition">
+                {ch.chapter_title}
+              </h3>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+            {pdfUrl && (
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 text-xs font-medium transition"
+                title="Download NCERT PDF"
+              >
+                <Download className="w-3.5 h-3.5" />
+                PDF
+              </a>
+            )}
+            <Link
+              href={chapterHref}
+              className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 text-xs font-medium transition"
+            >
+              {lang === 'hi' ? 'पढ़ें' : 'Read'}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Breadcrumb */}
+      <BackButton
+        href={`/ncert/${classNum}`}
+        label="Back to Class"
+        language={lang}
+      />
+
+      {/* BREADCRUMB */}
       <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-        <Link href="/" className="hover:text-indigo-600 dark:hover:text-indigo-400">
-          Home
+        <Link
+          href="/"
+          className="hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1"
+        >
+          <Home className="w-3.5 h-3.5" /> Home
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
-        <Link href="/ncert" className="hover:text-indigo-600 dark:hover:text-indigo-400">
+        <Link
+          href="/ncert"
+          className="hover:text-indigo-600 dark:hover:text-indigo-400"
+        >
           NCERT
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
         <Link
-          href={`/ncert/${params.class}`}
+          href={`/ncert/${classNum}`}
           className="hover:text-indigo-600 dark:hover:text-indigo-400"
         >
           Class {classNum}
@@ -171,137 +261,139 @@ export default async function NCERTSubjectPage({
         </span>
       </nav>
 
-      {/* Header */}
-      <header className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 p-6 md:p-8">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-xl bg-white dark:bg-gray-800 shadow-sm flex-shrink-0">
-            <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-3xl md:text-4xl font-bold">
-              Class {classNum} – {subjectName}
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
-              Complete NCERT Solutions, chapter-wise notes, aur free PDF
-              downloads — CBSE syllabus ke according updated.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300">
-                <FileText className="w-3.5 h-3.5" />
-                {chapters.length} Chapters
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300">
-                <Download className="w-3.5 h-3.5" />
-                Free PDF
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300">
-                <Clock className="w-3.5 h-3.5" />
-                Updated 2026
-              </span>
+      {/* HEADER */}
+      <header
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${subjectMeta.gradient} p-8 md:p-10 text-white`}
+      >
+        <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
+
+        <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm flex-shrink-0 border border-white/30">
+              <SubjectIcon className="w-8 h-8" />
+            </div>
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-xs font-medium mb-2">
+                <BookOpen className="w-3.5 h-3.5" />
+                Class {classNum} •{' '}
+                {lang === 'hi' ? 'हिंदी माध्यम' : 'English Medium'}
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold break-words">
+                {subjectName}
+              </h1>
+              <p className="mt-2 text-white/90 max-w-xl">
+                {lang === 'hi'
+                  ? 'पूर्ण NCERT समाधान, नोट्स, और मुफ्त PDF डाउनलोड'
+                  : 'Complete NCERT Solutions, notes, and free PDF downloads'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20">
+                  <FileText className="w-3.5 h-3.5" />
+                  {totalChapters} {lang === 'hi' ? 'अध्याय' : 'Chapters'}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20">
+                  <Download className="w-3.5 h-3.5" /> Free PDF
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20">
+                  <Clock className="w-3.5 h-3.5" /> Updated 2026
+                </span>
+              </div>
             </div>
           </div>
+          <LanguageToggle />
         </div>
       </header>
 
-      {/* Chapters List */}
-      <section>
-        <h2 className="text-2xl font-bold mb-4">All Chapters</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {chapters.map((ch, index) => (
-            <div
-              key={ch.id}
-              className="group bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-5 hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-700 transition"
-            >
-              {/* Chapter Header */}
-              <div className="flex items-start gap-3 mb-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center font-bold text-indigo-700 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition">
-                  {ch.chapter_num || index + 1}
-                </div>
-                <h3 className="flex-1 text-lg font-semibold leading-tight line-clamp-2">
-                  {ch.chapter_title}
-                </h3>
+      {/* CHAPTERS LIST */}
+      {twoParts ? (
+        <div className="space-y-10">
+          <section>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-md">
+                1
               </div>
-
-              {/* Actions */}
-              <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                {ch.pdf_url && (
-                  <a
-                    href={ch.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Download PDF
-                  </a>
-                )}
-                <Link
-                  href={`/ncert/${classNum}/${encodeURIComponent(subject)}/${ch.chapter_num}`}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition ml-auto"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  Read Notes
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
-                </Link>
-              </div>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+                {lang === 'hi' ? 'भाग 1' : 'Part 1'}
+              </h2>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                ({part1Chapters.length}{' '}
+                {lang === 'hi' ? 'अध्याय' : 'chapters'})
+              </span>
             </div>
-          ))}
-        </div>
-      </section>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {part1Chapters.map((ch) => (
+                <ChapterCard
+                  key={ch.id}
+                  ch={ch}
+                  partLabel={lang === 'hi' ? 'भाग 1' : 'Part 1'}
+                />
+              ))}
+            </div>
+          </section>
 
-      {/* CTA — Cross-link to Notes */}
-      <section className="bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-700 dark:to-blue-700 rounded-2xl p-6 md:p-8 text-white text-center">
-        <h2 className="text-xl md:text-2xl font-bold">
-          Looking for notes too?
-        </h2>
-        <p className="mt-2 text-indigo-100 text-sm max-w-xl mx-auto">
-          Class {classNum} {subjectName} ke saare notes, important questions,
-          aur revision material ek jagah.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3 justify-center">
-          <Link
-            href={`/notes/${classNum}/${encodeURIComponent(subject)}`}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-indigo-700 rounded-xl font-medium hover:bg-indigo-50 transition shadow-lg"
-          >
-            <FileText className="w-4 h-4" />
-            View Notes
-          </Link>
-          <Link
-            href="/ncert"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur-sm border border-white/30 text-white rounded-xl font-medium hover:bg-white/20 transition"
-          >
-            <Home className="w-4 h-4" />
-            All Classes
-          </Link>
+          {part2Chapters.length > 0 && (
+            <section>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-sm font-bold shadow-md">
+                  2
+                </div>
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+                  {lang === 'hi' ? 'भाग 2' : 'Part 2'}
+                </h2>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  ({part2Chapters.length}{' '}
+                  {lang === 'hi' ? 'अध्याय' : 'chapters'})
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {part2Chapters.map((ch) => (
+                  <ChapterCard
+                    key={ch.id}
+                    ch={ch}
+                    partLabel={lang === 'hi' ? 'भाग 2' : 'Part 2'}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
-      </section>
+      ) : (
+        <section>
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {lang === 'hi' ? 'सभी अध्याय' : 'All Chapters'}
+            </h2>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {totalChapters} {lang === 'hi' ? 'कुल' : 'total'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {chapters.map((ch) => (
+              <ChapterCard key={ch.id} ch={ch} />
+            ))}
+          </div>
+        </section>
+      )}
 
-      {/* Related Links */}
-      <section className="text-center py-4">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Aur bhi dekho:{' '}
-          <Link
-            href="/competitive-exams"
-            className="text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            Competitive Exams
-          </Link>
-          {' · '}
-          <Link
-            href="/rojgar-samachar"
-            className="text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            Rojgar Samachar
-          </Link>
-          {' · '}
-          <Link
-            href="/results"
-            className="text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            Results
-          </Link>
+      {/* CTA */}
+      <section className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 p-6 md:p-8 text-center">
+        <BookOpen className="w-10 h-10 text-indigo-600 dark:text-indigo-400 mx-auto mb-3" />
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          {lang === 'hi' ? 'अन्य विषय देखें' : 'Explore Other Subjects'}
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-md mx-auto">
+          {lang === 'hi'
+            ? `कक्षा ${classNum} के अन्य विषयों के लिए NCERT समाधान देखें`
+            : `Check out NCERT solutions for other Class ${classNum} subjects`}
         </p>
+        <Link
+          href={`/ncert/${classNum}?lang=${lang}`}
+          className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition text-sm font-medium"
+        >
+          <Home className="w-4 h-4" />
+          {lang === 'hi' ? 'कक्षा' : 'Class'} {classNum}
+        </Link>
       </section>
     </div>
   )

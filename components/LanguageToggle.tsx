@@ -8,13 +8,14 @@ export function LanguageToggle() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  // ✅ 'hi' ya 'en' — short codes
   const currentLang = searchParams.get('lang') === 'hi' ? 'hi' : 'en'
 
-  const switchTo = (lang: 'en' | 'hi') => {
+  const switchTo = (lang: 'hi' | 'en') => {
     if (lang === currentLang) return
     const params = new URLSearchParams(searchParams.toString())
     params.set('lang', lang)
-    params.set('page', '1') // reset to page 1 on language switch
+    params.set('page', '1')
     router.push(`${pathname}?${params.toString()}`)
   }
 
@@ -28,7 +29,6 @@ export function LanguageToggle() {
             ? 'bg-indigo-600 text-white shadow-sm'
             : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
         }`}
-        aria-pressed={currentLang === 'en'}
       >
         English
       </button>
@@ -39,7 +39,6 @@ export function LanguageToggle() {
             ? 'bg-indigo-600 text-white shadow-sm'
             : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
         }`}
-        aria-pressed={currentLang === 'hi'}
       >
         हिंदी
       </button>

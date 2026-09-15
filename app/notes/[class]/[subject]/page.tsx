@@ -7,40 +7,31 @@ import {
   ArrowRight,
   ChevronRight,
   Home,
-  AlertCircle,
+  Download,
 } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
 import { buildMetadata } from '@/lib/seo'
 import { LanguageToggle } from '@/components/LanguageToggle'
+import { BackButton } from '@/components/BackButton'
 
-// ==================== SEO ====================
 export async function generateMetadata({
   params,
-  searchParams,
 }: {
   params: { class: string; subject: string }
-  searchParams: { lang?: string }
 }): Promise<Metadata> {
   const classNum = params.class
   const subjectName = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
-  const lang = searchParams.lang || 'english'
 
   return buildMetadata({
-    title: `Class ${classNum} ${subjectName} Notes – Free PDF Download | VidyaPath`,
-    description: `Download free Class ${classNum} ${subjectName} notes. Chapter-wise summary, important questions, and revision material for exam preparation.`,
+    title: `Class ${classNum} ${subjectName} Notes – Free Download | VidyaPath`,
+    description: `Free Class ${classNum} ${subjectName} study notes. Chapter-wise summary and revision material.`,
     path: `/notes/${params.class}/${params.subject}`,
-    keywords: [
-      `class ${classNum} ${subjectName} notes`,
-      `${subjectName} notes pdf`,
-      `class ${classNum} study material`,
-      'free study notes',
-    ],
+    keywords: [`class ${classNum} ${subjectName} notes`, 'free study notes'],
   })
 }
 
-// ==================== PAGE ====================
 export default async function NotesSubjectPage({
   params,
   searchParams,
@@ -50,7 +41,7 @@ export default async function NotesSubjectPage({
 }) {
   const classNum = parseInt(params.class, 10)
   const subject = decodeURIComponent(params.subject)
-  const lang = searchParams.lang || 'english'
+  const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
   if (isNaN(classNum)) notFound()
 
@@ -60,127 +51,119 @@ export default async function NotesSubjectPage({
 
   const supabase = createServerClient()
 
-  const { data: chapters, error } = await supabase
+  const { data: chapters } = await supabase
     .from('ncert')
-    .select('id, class, subject, chapter_num, chapter_title, language')
+    .select('id, chapter_num, chapter_title, book_code')
     .eq('class', classNum)
     .eq('subject', subject)
     .eq('language', lang)
     .order('chapter_num', { ascending: true })
 
-  // Error state
-  if (error) {
-    console.error('Supabase error:', error)
-    return (
-      <div className="max-w-3xl mx-auto py-12 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/40 mb-4">
-          <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
-        </div>
-        <h1 className="text-2xl font-bold">
-          Class {classNum} {subjectName} Notes
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">
-          ⚠️ Could not load notes at the moment.
-        </p>
-        <Link
-          href="/notes"
-          className="inline-flex items-center gap-2 mt-6 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"
-        >
-          <Home className="w-4 h-4" /> Back to Notes
-        </Link>
-      </div>
-    )
-  }
-
-  // Empty state
   if (!chapters || chapters.length === 0) {
     return (
-      <div className="max-w-3xl mx-auto py-12">
-        <h1 className="text-3xl font-bold">
-          Class {classNum} {subjectName} Notes
-        </h1>
-        <div className="mt-6 text-center py-12 bg-white/60 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
-          <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-500 dark:text-gray-400 text-lg">
+      <div className="max-w-3xl mx-auto py-12 space-y-6">
+        <BackButton href="/notes" label="Back to Notes" language={lang} />
+        <div className="text-center py-16 bg-white/60 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
+          <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold">
+            Class {classNum} {subjectName} Notes
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">
             📭 Notes coming soon
           </p>
-          <Link
-            href="/notes"
-            className="inline-flex items-center gap-2 mt-6 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"
-          >
-            <Home className="w-4 h-4" /> Browse Other Subjects
-          </Link>
         </div>
       </div>
     )
   }
 
-  // Normal view
   return (
-    <div className="space-y-8">
+    <div className="max-w-5xl mx-auto space-y-6">
+      <BackButton href="/notes" label="Back to Notes" language={lang} />
+
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-        <Link href="/" className="hover:text-indigo-600 dark:hover:text-indigo-400">
-          Home
+        <Link href="/" className="hover:text-indigo-600 flex items-center gap-1">
+          <Home className="w-3.5 h-3.5" /> Home
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
-        <Link href="/notes" className="hover:text-indigo-600 dark:hover:text-indigo-400">
-          Notes
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <Link
-          href={`/notes/${classNum}`}
-          className="hover:text-indigo-600 dark:hover:text-indigo-400"
-        >
-          Class {classNum}
-        </Link>
+        <Link href="/notes" className="hover:text-indigo-600">Notes</Link>
         <ChevronRight className="w-3.5 h-3.5" />
         <span className="text-gray-700 dark:text-gray-300 font-medium">
-          {subjectName}
+          Class {classNum} • {subjectName}
         </span>
       </nav>
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 p-6 md:p-8">
-        <div className="flex items-start gap-4 flex-1">
-          <div className="p-3 rounded-xl bg-white dark:bg-gray-800 shadow-sm flex-shrink-0">
-            <BookOpen className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold">
-              Class {classNum} {subjectName} Notes
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
-              Chapter-wise notes aur study material
-            </p>
-            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 dark:bg-gray-800/70 text-sm text-gray-700 dark:text-gray-300">
-              <FileText className="w-3.5 h-3.5" />
-              {chapters.length} Chapters
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 p-6 md:p-8 text-white">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-4 flex-1">
+            <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+              <BookOpen className="w-8 h-8" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white/80">
+                Class {classNum} • {subjectName}
+              </p>
+              <h1 className="text-3xl md:text-4xl font-bold mt-1">
+                Study Notes
+              </h1>
+              <p className="mt-2 text-white/90">
+                {chapters.length} chapters available
+              </p>
             </div>
           </div>
+          <LanguageToggle />
         </div>
-        <LanguageToggle />
-      </div>
+      </header>
 
       {/* Chapters */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {chapters.map((ch) => (
-          <Link
-            key={ch.id}
-            href={`/notes/${classNum}/${encodeURIComponent(subject)}/${ch.chapter_num}?lang=${lang}`}
-            className="group bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-5 hover:shadow-xl hover:border-emerald-300 dark:hover:border-emerald-700 transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center font-bold text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition">
-                {ch.chapter_num}
+        {chapters.map((ch) => {
+          const pdfUrl = ch.book_code
+            ? `https://ncert.nic.in/textbook/pdf/${ch.book_code}.pdf`
+            : null
+          const href = `/notes/${classNum}/${encodeURIComponent(subject)}/${ch.chapter_num}?lang=${lang}`
+
+          return (
+            <div
+              key={ch.id}
+              className="group bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all overflow-hidden"
+            >
+              <Link href={href} className="flex items-start gap-3 p-5">
+                <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center font-bold text-white shadow-md group-hover:scale-105 transition">
+                  {ch.chapter_num}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500 uppercase">
+                    Chapter {ch.chapter_num}
+                  </p>
+                  <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-emerald-600 transition line-clamp-2">
+                    {ch.chapter_title}
+                  </h3>
+                </div>
+              </Link>
+
+              <div className="flex items-center gap-2 px-5 pb-4">
+                {pdfUrl && (
+                  <a
+                    href={pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-100 transition"
+                  >
+                    <Download className="w-3.5 h-3.5" /> PDF
+                  </a>
+                )}
+                <Link
+                  href={href}
+                  className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium hover:bg-emerald-100 transition"
+                >
+                  Open <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
-              <h3 className="flex-1 font-semibold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
-                {ch.chapter_title}
-              </h3>
-              <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition" />
             </div>
-          </Link>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
