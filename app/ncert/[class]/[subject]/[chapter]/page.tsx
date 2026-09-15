@@ -64,12 +64,15 @@ export default async function ChapterPage({
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
-  // ⚠️ FIX: Capitalize subject for DB match
+  // ⚠️ Capitalize subject for DB match (DB me 'Mathematics' hai)
   const subject = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
 
   const subjectName = subject
+
+  // ⚠️ Keep raw subject for URL building (lowercase URL preserve)
+  const rawSubject = params.subject
 
   const supabaseServer = createServerClient()
 
@@ -127,7 +130,7 @@ export default async function ChapterPage({
 
       <div className="space-y-6">
         <BackButton
-          href={`/ncert/${classNum}/${encodeURIComponent(subject)}?lang=${lang}`}
+          href={`/ncert/${classNum}/${rawSubject}?lang=${lang}`}
           label="Back to chapters"
           language={lang}
         />
@@ -139,7 +142,7 @@ export default async function ChapterPage({
             { label: `Class ${classNum}`, href: `/ncert/${classNum}` },
             {
               label: subjectName,
-              href: `/ncert/${classNum}/${encodeURIComponent(subject)}`,
+              href: `/ncert/${classNum}/${rawSubject}`,
             },
             { label: `Chapter ${chapterNum}`, href: '#' },
           ]}
