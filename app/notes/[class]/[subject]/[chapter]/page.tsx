@@ -33,7 +33,7 @@ export async function generateMetadata({
       .from('ncert')
       .select('chapter_title')
       .eq('class', parseInt(classNum, 10))
-      .eq('subject', decodeURIComponent(params.subject))
+      .eq('subject', subjectName)  // ⚠️ FIX: capitalized subject
       .eq('chapter_num', parseInt(chapterNum, 10))
       .eq('language', lang)
       .maybeSingle()
@@ -56,15 +56,20 @@ export default async function NotesChapterPage({
   searchParams: { lang?: string }
 }) {
   const classNum = parseInt(params.class, 10)
-  const subject = decodeURIComponent(params.subject)
   const chapterNum = parseInt(params.chapter, 10)
   const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
-  const subjectName = subject
+  // ⚠️ FIX: Capitalize subject for DB match
+  const subject = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
+
+  const subjectName = subject
+
+  // ⚠️ Keep raw subject for URL building (lowercase URL preserve)
+  const rawSubject = params.subject
 
   const supabase = createServerClient()
 
@@ -72,7 +77,7 @@ export default async function NotesChapterPage({
     .from('ncert')
     .select('id, class, chapter_num, chapter_title, book_code, pdf_url, language')
     .eq('class', classNum)
-    .eq('subject', subject)
+    .eq('subject', subject)  // ⚠️ FIX: capitalized
     .eq('chapter_num', chapterNum)
     .eq('language', lang)
     .maybeSingle()
@@ -113,9 +118,9 @@ export default async function NotesChapterPage({
   return (
     <div className="space-y-6">
       <BackButton
-        href={`/notes/${classNum}/${encodeURIComponent(subject)}?lang=${lang}`}
+        href={`/notes/${classNum}/${rawSubject}?lang=${lang}`}
         label="Back to chapters"
-        language={lang}
+        language={lang as 'en' | 'hi'}
       />
 
       <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
@@ -135,7 +140,7 @@ export default async function NotesChapterPage({
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
         <Link
-          href={`/notes/${classNum}/${encodeURIComponent(subject)}`}
+          href={`/notes/${classNum}/${rawSubject}`}
           className="hover:text-indigo-600"
         >
           {subjectName}
