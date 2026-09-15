@@ -53,6 +53,12 @@ function makeEntry({
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = []
 
+  // ⚠️ NEW: Lookup map for ncert info (needed by notes section)
+  const ncertMap = new Map<
+    number,
+    { class: number; subject: string; chapter_num: number }
+  >()
+
   // ===== 1. STATIC PAGES =====
   const staticPages: Array<{
     path: string
@@ -84,18 +90,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ===== 2. NCERT CHAPTERS =====
-  // ✅ FIX: Sirf wahi columns select karo jo DB me hain
-  // (class, subject, chapter_num, language)
+  // ✅ FIX: 'id' bhi select karo (needed for notes lookup)
   try {
     const { data: ncertData, error } = await supabase
       .from('ncert')
-      .select('class, subject, chapter_num, language')
+      .select('id, class, subject, chapter_num, language')
 
     if (error) {
       console.warn('[sitemap] NCERT query error:', error.message)
     }
 
     if (ncertData && ncertData.length > 0) {
+      // Build lookup map for notes section
+      for (const item of ncertData) {
+        if (item.id) {
+          ncertMap.set(item.id, {
+            class: item.class,
+            subject: item.subject,
+            chapter_num: item.chapter_num,
+          })
+        }
+      }
+
       // Subject-level pages (unique class + subject)
       const subjectSet = new Set<string>()
       const chapterSet = new Set<string>()
@@ -134,7 +150,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       console.log(
-        `[sitemap] NCERT: ${subjectSet.size} subjects, ${chapterSet.size} chapters`
+        `[sitemap] NCERT: ${subjectSet.size} subjects, ${chapterSet.size} chapters (map: ${ncertMap.size})`
       )
     } else {
       console.warn('[sitemap] NCERT: no data found')
@@ -144,11 +160,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ===== 3. NOTES CHAPTERS =====
-  // ✅ FIX: Same approach — sirf available columns
+  // ✅ FIX: chapter_notes me class/subject/chapter_num NAHI hain
+  // Sirf ncert_id hai — usse ncertMap me lookup karo
   try {
     const { data: notesData, error } = await supabase
       .from('chapter_notes')
-      .select('class, subject, chapter_num')
+      .select('ncert_id')
 
     if (error) {
       console.warn('[sitemap] Notes query error:', error.message)
@@ -158,14 +175,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const subjectSet = new Set<string>()
       const chapterSet = new Set<string>()
 
-      for (const item of notesData) {
-        if (item.class && item.subject) {
-          const combo = `${item.class}/${encodeURIComponent(item.subject)}`
-          subjectSet.add(combo)
+      for (const note of notesData) {
+        if (!note.ncert_id) continue
+        const ncert = ncertMap.get(note.ncert_id)
+        if (!ncert) continue
 
-          if (item.chapter_num) {
-            chapterSet.add(`${combo}/${item.chapter_num}`)
-          }
+        const combo = `${ncert.class}/${encodeURIComponent(ncert.subject)}`
+        subjectSet.add(combo)
+
+        if (ncert.chapter_num) {
+          chapterSet.add(`${combo}/${ncert.chapter_num}`)
         }
       }
 
@@ -190,7 +209,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       console.log(
-        `[sitemap] Notes: ${subjectSet.size} subjects, ${chapterSet.size} chapters`
+        `[sitemap] Notes: ${subjectSet.size} subjects, ${chapterSet.size} chapters (from ${notesData.length} notes)`
       )
     }
   } catch (err: any) {
@@ -223,7 +242,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       for (const sub of subjects) {
         const anySub = sub as any
 
-        // Try multiple possible column names
         const examSlug =
           anySub.exam_slug || anySub.exam_id || anySub.exam || null
         const subjectSlug =
@@ -269,8 +287,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         const topicSlug =
           anyT.slug || anyT.name || anyT.topic_slug || anyT.topic || null
 
-                // Handle "ssc/गणित" style subject_slug
-        // ✅ FIX: Convert to String before .includes() — subjectSlug might be number/object
+        // Handle "ssc/गणित" style subject_slug
         let exam = examSlug
         let subject = subjectSlug
         const subjectStr = subjectSlug != null ? String(subjectSlug) : ''
