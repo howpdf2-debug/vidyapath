@@ -4,19 +4,13 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 
 interface BackButtonProps {
-  /** Fallback route if no browser history */
   href?: string
-  /** Button label (auto-translates for Hindi if language='hi') */
   label?: string
-  /** Show or hide the label text */
   showLabel?: boolean
-  /** Additional CSS classes */
   className?: string
-  /** Language for auto-translation: 'en' | 'hi' */
   language?: 'en' | 'hi'
 }
 
-// ⚠️ Auto-translate common labels
 const LABEL_TRANSLATIONS: Record<string, { en: string; hi: string }> = {
   'Back': { en: 'Back', hi: 'वापस' },
   'Back to chapters': { en: 'Back to chapters', hi: 'अध्यायों पर वापस' },
@@ -34,9 +28,7 @@ export function BackButton({
 }: BackButtonProps) {
   const router = useRouter()
 
-  // ⚠️ Auto-translate label based on language
-  const translatedLabel =
-    LABEL_TRANSLATIONS[label]?.[language] || label
+  const translatedLabel = LABEL_TRANSLATIONS[label]?.[language] || label
 
   const handleClick = () => {
     if (typeof window === 'undefined') {
@@ -44,11 +36,10 @@ export function BackButton({
       return
     }
 
-    // ⚠️ Better check: only use router.back() if we have internal history
-    // window.history.state gives us Next.js internal state
     const hasInternalHistory =
       window.history.length > 1 &&
-      (window.history.state?.idx > 0 || document.referrer.includes(window.location.origin))
+      (window.history.state?.idx > 0 ||
+        document.referrer.includes(window.location.origin))
 
     if (hasInternalHistory) {
       router.back()

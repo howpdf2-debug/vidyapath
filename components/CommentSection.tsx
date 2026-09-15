@@ -12,8 +12,8 @@ interface Comment {
   ncert_id: number
   comment: string
   created_at: string
-  author_name?: string
-  author_email?: string
+  author_name?: string | null  // ← null allow karo
+  author_email?: string | null // ← null allow karo
 }
 
 export function CommentSection({ chapterId }: { chapterId: number }) {
