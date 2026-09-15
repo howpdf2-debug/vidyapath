@@ -21,6 +21,9 @@ import { LanguageToggle } from '@/components/LanguageToggle'
 import { BackButton } from '@/components/BackButton'
 import { getPdfUrl, hasTwoParts } from '@/lib/pdf'
 
+// ⚠️ Force dynamic so Vercel doesn't cache stale data
+export const dynamic = 'force-dynamic'
+
 // ==================== SEO ====================
 export async function generateMetadata({
   params,
@@ -63,14 +66,17 @@ export default async function NCERTSubjectPage({
   searchParams: { lang?: string }
 }) {
   const classNum = parseInt(params.class, 10)
-  const subject = decodeURIComponent(params.subject)
   const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
   if (isNaN(classNum)) notFound()
 
-  const subjectName = subject
+  // ⚠️ FIX: Capitalize subject for DB matching
+  // URL me 'mathematics' aata hai, DB me 'Mathematics' hai
+  const subject = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
+
+  const subjectName = subject // alias for display consistency
 
   const subjectMeta = SUBJECT_META[subject] || {
     icon: BookOpen,
