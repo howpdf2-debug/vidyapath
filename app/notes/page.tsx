@@ -1,11 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
-  BookOpen,
-  FileText,
-  ArrowRight,
-  Sparkles,
-  GraduationCap,
+  BookOpen, FileText, ArrowRight, Sparkles, GraduationCap,
+  Layers, TrendingUp, BookMarked, Play,
 } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
 import { buildMetadata } from '@/lib/seo'
@@ -13,13 +10,20 @@ import { LanguageToggle } from '@/components/LanguageToggle'
 
 export const metadata: Metadata = buildMetadata({
   title: 'Study Notes Class 6-12 – Free Chapter-wise Notes | VidyaPath',
-  description:
-    'Free study notes for Class 6-12. Chapter-wise notes, key points, and revision material for all subjects.',
+  description: 'Free study notes for Class 6-12. Chapter-wise notes, key points, and revision material.',
   path: '/notes',
   keywords: ['study notes', 'class notes', 'chapter notes', 'free notes'],
 })
 
-const CLASSES = [6, 7, 8, 9, 10, 11, 12]
+const CLASSES = [
+  { num: 6, gradient: 'from-sky-400 to-blue-500' },
+  { num: 7, gradient: 'from-cyan-400 to-teal-500' },
+  { num: 8, gradient: 'from-emerald-400 to-green-500' },
+  { num: 9, gradient: 'from-lime-400 to-emerald-500' },
+  { num: 10, gradient: 'from-amber-400 to-orange-500' },
+  { num: 11, gradient: 'from-orange-400 to-red-500' },
+  { num: 12, gradient: 'from-rose-400 to-pink-500' },
+]
 
 export default async function NotesPage({
   searchParams,
@@ -29,77 +33,149 @@ export default async function NotesPage({
   const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
   const supabase = createServerClient()
 
-  // Fetch all chapters + notes count per class
   const { data: chapters } = await supabase
     .from('ncert')
     .select('class, subject')
     .eq('language', lang)
 
-  // Count subjects per class
   const classData: Record<number, Set<string>> = {}
   chapters?.forEach((ch) => {
     if (!classData[ch.class]) classData[ch.class] = new Set()
     classData[ch.class].add(ch.subject)
   })
 
-  return (
-    <div className="space-y-10">
-      {/* HERO */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 dark:from-emerald-800 dark:to-teal-800 p-8 md:p-12 text-white">
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+  const totalChapters = chapters?.length || 0
 
-        <div className="relative z-10 flex flex-wrap items-start justify-between gap-6">
-          <div className="flex-1">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm text-sm font-medium mb-4">
-              <Sparkles className="w-4 h-4" />
-              Study Notes
+  return (
+    <div className="space-y-16 sm:space-y-20 pb-16">
+      {/* HERO */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-6 sm:p-10 md:p-14 text-white">
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-400/30 rounded-full blur-[100px] animate-pulse-slow" />
+        <div className="absolute -top-20 -right-20 w-96 h-96 bg-cyan-400/30 rounded-full blur-[100px] animate-pulse-slow" />
+
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage: `linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)`,
+            backgroundSize: '48px 48px',
+          }}
+        />
+
+        <div className="relative z-10 max-w-4xl">
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs sm:text-sm font-medium border border-white/20 shadow-lg">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Study Notes • Free Forever</span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold">
-              Chapter-wise Notes
-            </h1>
-            <p className="mt-3 text-lg text-white/90 max-w-2xl">
-              Har chapter ke important points, formulas, aur revision material — exam ke liye perfect.
-            </p>
+            <LanguageToggle />
           </div>
-          <LanguageToggle />
+
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.02] tracking-tight mb-5">
+            Chapter-wise
+            <br />
+            <span className="bg-gradient-to-r from-yellow-200 via-amber-200 to-orange-200 bg-clip-text text-transparent">
+              Study Notes.
+            </span>
+          </h1>
+
+          <p className="text-base sm:text-lg text-white/85 leading-relaxed max-w-2xl mb-8 text-pretty">
+            Har chapter ke important points, formulas, aur revision material — exam ke liye perfect.
+          </p>
+
+          <div className="flex flex-wrap gap-3 mb-8">
+            <a
+              href="#classes"
+              className="group inline-flex items-center gap-2 px-6 py-3.5 bg-white text-slate-900 rounded-2xl font-bold hover:bg-white/95 transition shadow-2xl shadow-black/20 hover:scale-[1.02]"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              Choose Class
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+            </a>
+            <Link
+              href="/ncert"
+              className="inline-flex items-center gap-2 px-6 py-3.5 bg-white/10 backdrop-blur-md text-white border border-white/25 rounded-2xl font-semibold hover:bg-white/20 transition"
+            >
+              <BookOpen className="w-5 h-5" />
+              Browse NCERT
+            </Link>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-white/90">
+            <span className="inline-flex items-center gap-2">
+              <span className="text-emerald-300">✓</span> {totalChapters}+ Chapters
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="text-yellow-300">✓</span> 7 Classes
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="text-pink-300">✓</span> Exam Ready
+            </span>
+          </div>
         </div>
       </section>
 
-      {/* CLASSES GRID */}
-      <section>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-          Choose Your Class
-        </h2>
+      {/* STATS */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4 -mt-12 sm:-mt-16 relative z-20">
+        <BigStat value={`${totalChapters}+`} label="Chapters" gradient="from-emerald-500 to-teal-500" />
+        <BigStat value="18" label="Subjects" gradient="from-brand-500 to-purple-500" />
+        <BigStat value="7" label="Classes" gradient="from-amber-500 to-orange-500" />
+        <BigStat value="100%" label="Free" gradient="from-pink-500 to-rose-500" />
+      </section>
+
+      {/* CLASSES */}
+      <section id="classes">
+        <div className="mb-8">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-3">
+            <Layers className="w-3.5 h-3.5" />
+            Pick Your Class
+          </div>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+            Notes Kahan Se Shuru Karu?
+          </h2>
+          <p className="text-base text-slate-600 dark:text-slate-400 mt-3">
+            Chapter-wise notes for Classes 6 to 12
+          </p>
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {CLASSES.map((cls) => {
-            const subjectCount = classData[cls]?.size || 0
+            const subjectCount = classData[cls.num]?.size || 0
 
             return (
               <Link
-                key={cls}
-                href={`/notes/${cls}?lang=${lang}`}
-                className="group bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-emerald-300 dark:hover:border-emerald-700 hover:scale-[1.02] transition-all"
+                key={cls.num}
+                href={`/notes/${cls.num}?lang=${lang}`}
+                className="group relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-transparent p-5 transition-all hover:shadow-2xl hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg">
-                    <GraduationCap className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">
-                      Class
-                    </p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {cls}
-                    </p>
-                  </div>
-                </div>
+                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${cls.gradient} opacity-0 group-hover:opacity-100 transition-opacity -z-10`} />
+                <div className="absolute inset-[1px] rounded-2xl bg-white dark:bg-slate-900 -z-10" />
+                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${cls.gradient} opacity-0 group-hover:opacity-100 transition`} />
 
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">
-                    {subjectCount} subjects
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:translate-x-1 transition" />
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${cls.gradient} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                      <GraduationCap className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">
+                        Class
+                      </p>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">
+                        {cls.num}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      {subjectCount} subjects
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:translate-x-1 transition" />
+                  </div>
                 </div>
               </Link>
             )
@@ -108,15 +184,49 @@ export default async function NotesPage({
       </section>
 
       {/* INFO */}
-      <section className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-3xl p-8 text-center">
-        <BookOpen className="w-12 h-12 text-emerald-600 dark:text-emerald-400 mx-auto mb-4" />
-        <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-          NCERT ke saath Notes
-        </h3>
-        <p className="text-gray-600 dark:text-gray-400 mt-2 max-w-xl mx-auto">
-          Har chapter ke NCERT solutions ke saath hum chapter-wise notes bhi provide karte hain — exam preparation ke liye best.
-        </p>
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/40 dark:via-teal-950/40 dark:to-cyan-950/40 p-6 sm:p-10 md:p-14 border border-emerald-100 dark:border-emerald-900/40">
+        <div className="relative text-center max-w-2xl mx-auto">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-xl mb-5">
+            <BookMarked className="w-8 h-8 text-white" />
+          </div>
+          <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-4">
+            NCERT ke Saath Notes
+          </h3>
+          <p className="text-base text-slate-600 dark:text-slate-400 mb-8">
+            Har chapter ke NCERT solutions ke saath hum chapter-wise notes bhi provide karte hain — exam preparation ke liye best.
+          </p>
+          <Link
+            href="/ncert"
+            className="inline-flex items-center gap-2 px-7 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-bold hover:shadow-xl hover:scale-[1.02] transition shadow-lg shadow-emerald-500/30"
+          >
+            <BookOpen className="w-4 h-4" />
+            Explore NCERT
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </section>
+    </div>
+  )
+}
+
+function BigStat({
+  value,
+  label,
+  gradient,
+}: {
+  value: string
+  label: string
+  gradient: string
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-lg hover:shadow-xl transition-all">
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient}`} />
+      <p className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-none tracking-tight">
+        {value}
+      </p>
+      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1.5">
+        {label}
+      </p>
     </div>
   )
 }
