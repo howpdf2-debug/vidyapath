@@ -5,19 +5,20 @@
 @tailwind utilities;
 
 /* =========================================================
-   VIDYAPATH DESIGN SYSTEM 2.0 — Round 5 FINAL
+   VIDYAPATH DESIGN SYSTEM 2.0 — Round 6 FINAL
    
-   Round 5 fixes:
-   • Base styles moved INSIDE @layer base (utility override-ability restored)
-   • `span` removed from aggressive word-break rule (badges/labels safe)
-   • Dark subject overrides COMPLETED (500, 900 now overridden)
-   • `.bg-subject-*-soft` gradient utilities restored (backward compat)
-   • Theme transition added (smooth dark-mode toggle)
-   • html { font-size: 16px } explicit
+   Round 6 fixes:
+   • pulse-slow keyframe added (was missing → homepage hero static)
+   • iOS input zoom prevention (font-size: 16px on inputs)
+   • min-height: 100dvh (mobile browser support)
+   • text-wrap: pretty on paragraphs
+   • @supports fallback for backdrop-filter
+   • Hindi font-feature-settings
+   • Removed redundant mobile body font-size
    ========================================================= */
 
 /* ═══════════════════════════════════════════════════════
-   DESIGN TOKENS (variables at root — not layered, always available)
+   DESIGN TOKENS
    ═══════════════════════════════════════════════════════ */
 
 :root {
@@ -51,7 +52,7 @@
 }
 
 .dark {
-  --foreground: 248 250 252; /* synced with paper.DEFAULT #F8FAFC */
+  --foreground: 248 250 252;
 
   --surface: 15 23 42;
   --surface-muted: 30 41 59;
@@ -69,13 +70,12 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   BASE LAYER — All base styles INSIDE @layer base
-   (so Tailwind utilities can override them)
+   BASE LAYER
    ═══════════════════════════════════════════════════════ */
 
 @layer base {
   html {
-    font-size: 16px; /* explicit — matches browser default but prevents extension overrides */
+    font-size: 16px;
     min-width: 320px;
     scroll-behavior: smooth;
     text-size-adjust: 100%;
@@ -84,7 +84,9 @@
 
   body {
     @apply bg-paper text-ink;
+    /* ✅ FIX: 100dvh with 100vh fallback (mobile dynamic viewport) */
     min-height: 100vh;
+    min-height: 100dvh;
     margin: 0;
 
     background-image: radial-gradient(
@@ -108,7 +110,6 @@
     line-height: 1.6;
     overflow-x: hidden;
 
-    /* Smooth theme switch */
     transition:
       background-color 200ms ease,
       color 200ms ease;
@@ -143,10 +144,19 @@
     line-height: 1.15;
     letter-spacing: -0.015em;
     text-wrap: balance;
+
+    /* ✅ FIX: Better Devanagari glyph rendering */
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   }
 
-  /* ✅ FIX: `span` removed — badges, pills, chips safe now */
-  p,
+  /* ✅ FIX: Paragraphs use text-wrap: pretty for cleaner line breaks */
+  p {
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+    text-wrap: pretty;
+  }
+
   li {
     overflow-wrap: normal;
     word-break: normal;
@@ -201,7 +211,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   COMPONENTS LAYER — Reusable class-based components
+   COMPONENTS LAYER
    ═══════════════════════════════════════════════════════ */
 
 @layer components {
@@ -276,11 +286,19 @@
       0 4px 16px rgb(15 23 42 / 0.06);
   }
 
+  /* ✅ FIX: @supports fallback for backdrop-filter */
   .surface-glass {
-    background: rgb(var(--surface) / 0.88);
+    background: rgb(var(--surface) / 0.96);
     border: 1px solid rgb(var(--border) / 0.8);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+  }
+
+  @supports (backdrop-filter: blur(10px)) or
+    (-webkit-backdrop-filter: blur(10px)) {
+    .surface-glass {
+      background: rgb(var(--surface) / 0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
   }
 
   .interactive {
@@ -329,6 +347,7 @@
   .prose-vidyapath p {
     margin-top: 1rem;
     margin-bottom: 1rem;
+    text-wrap: pretty;
   }
 
   .prose-vidyapath h2,
@@ -376,7 +395,6 @@
 
 /* ═══════════════════════════════════════════════════════
    SUBJECT THEME VARIABLES
-   (Not in a layer — pure CSS variables, always available)
    ═══════════════════════════════════════════════════════ */
 
 .subject-math {
@@ -451,78 +469,77 @@
   --subject-900: 49 46 129;
 }
 
-/* ✅ FIX: Dark mode — ALL 6 tiers overridden (was missing 500, 900) */
-
+/* Dark mode subject variants */
 .dark .subject-math {
   --subject-50: 30 58 138;
   --subject-100: 30 64 175;
-  --subject-500: 96 165 250;   /* blue-400 */
-  --subject-600: 96 165 250;   /* blue-400 accent */
-  --subject-700: 147 197 253;  /* blue-300 hover */
-  --subject-900: 191 219 254;  /* blue-200 deep — visible on dark */
+  --subject-500: 96 165 250;
+  --subject-600: 96 165 250;
+  --subject-700: 147 197 253;
+  --subject-900: 191 219 254;
 }
 
 .dark .subject-science {
   --subject-50: 6 78 59;
   --subject-100: 4 120 87;
-  --subject-500: 52 211 153;   /* emerald-400 */
+  --subject-500: 52 211 153;
   --subject-600: 52 211 153;
-  --subject-700: 110 231 183;  /* emerald-300 */
-  --subject-900: 167 243 208;  /* emerald-200 */
+  --subject-700: 110 231 183;
+  --subject-900: 167 243 208;
 }
 
 .dark .subject-physics {
   --subject-50: 76 29 149;
   --subject-100: 91 33 182;
-  --subject-500: 167 139 250;  /* violet-400 */
+  --subject-500: 167 139 250;
   --subject-600: 167 139 250;
-  --subject-700: 196 181 253;  /* violet-300 */
-  --subject-900: 221 214 254;  /* violet-200 */
+  --subject-700: 196 181 253;
+  --subject-900: 221 214 254;
 }
 
 .dark .subject-chemistry {
   --subject-50: 124 45 18;
   --subject-100: 154 52 18;
-  --subject-500: 251 146 60;   /* orange-400 */
+  --subject-500: 251 146 60;
   --subject-600: 251 146 60;
-  --subject-700: 253 186 116;  /* orange-300 */
-  --subject-900: 254 215 170;  /* orange-200 */
+  --subject-700: 253 186 116;
+  --subject-900: 254 215 170;
 }
 
 .dark .subject-biology {
   --subject-50: 20 83 45;
   --subject-100: 22 101 52;
-  --subject-500: 74 222 128;   /* green-400 */
+  --subject-500: 74 222 128;
   --subject-600: 74 222 128;
-  --subject-700: 134 239 172;  /* green-300 */
-  --subject-900: 187 247 208;  /* green-200 */
+  --subject-700: 134 239 172;
+  --subject-900: 187 247 208;
 }
 
 .dark .subject-english {
   --subject-50: 112 26 117;
   --subject-100: 134 25 143;
-  --subject-500: 232 121 249;  /* fuchsia-400 */
+  --subject-500: 232 121 249;
   --subject-600: 232 121 249;
-  --subject-700: 240 171 252;  /* fuchsia-300 */
-  --subject-900: 245 208 254;  /* fuchsia-200 */
+  --subject-700: 240 171 252;
+  --subject-900: 245 208 254;
 }
 
 .dark .subject-hindi {
   --subject-50: 120 53 15;
   --subject-100: 146 64 14;
-  --subject-500: 251 191 36;   /* amber-400 */
+  --subject-500: 251 191 36;
   --subject-600: 251 191 36;
-  --subject-700: 252 211 77;   /* amber-300 */
-  --subject-900: 253 230 138;  /* amber-200 */
+  --subject-700: 252 211 77;
+  --subject-900: 253 230 138;
 }
 
 .dark .subject-general {
   --subject-50: 49 46 129;
   --subject-100: 55 48 163;
-  --subject-500: 129 140 248;  /* indigo-400 */
+  --subject-500: 129 140 248;
   --subject-600: 129 140 248;
-  --subject-700: 165 180 252;  /* indigo-300 */
-  --subject-900: 199 210 254;  /* indigo-200 */
+  --subject-700: 165 180 252;
+  --subject-900: 199 210 254;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -583,106 +600,49 @@
     touch-action: manipulation;
   }
 
-  /* ✅ FIX: Backward-compat subject gradient utilities restored
-     (Claude's original design system used these — components may still reference) */
+  /* Backward-compat subject gradient utilities */
   .bg-subject-math-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(239 246 255),
-      #ffffff
-    );
+    background-image: linear-gradient(to bottom right, rgb(239 246 255), #ffffff);
   }
   .bg-subject-science-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(236 253 245),
-      #ffffff
-    );
+    background-image: linear-gradient(to bottom right, rgb(236 253 245), #ffffff);
   }
   .bg-subject-physics-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(245 243 255),
-      #ffffff
-    );
+    background-image: linear-gradient(to bottom right, rgb(245 243 255), #ffffff);
   }
   .bg-subject-chemistry-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(255 247 237),
-      #ffffff
-    );
+    background-image: linear-gradient(to bottom right, rgb(255 247 237), #ffffff);
   }
   .bg-subject-biology-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(240 253 244),
-      #ffffff
-    );
+    background-image: linear-gradient(to bottom right, rgb(240 253 244), #ffffff);
   }
   .bg-subject-english-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(253 244 255),
-      #ffffff
-    );
+    background-image: linear-gradient(to bottom right, rgb(253 244 255), #ffffff);
   }
   .bg-subject-hindi-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(255 247 237),
-      #ffffff
-    );
+    background-image: linear-gradient(to bottom right, rgb(255 247 237), #ffffff);
   }
 
   .dark .bg-subject-math-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(30 58 138 / 0.15),
-      rgb(15 23 42)
-    );
+    background-image: linear-gradient(to bottom right, rgb(30 58 138 / 0.15), rgb(15 23 42));
   }
   .dark .bg-subject-science-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(6 78 59 / 0.15),
-      rgb(15 23 42)
-    );
+    background-image: linear-gradient(to bottom right, rgb(6 78 59 / 0.15), rgb(15 23 42));
   }
   .dark .bg-subject-physics-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(76 29 149 / 0.15),
-      rgb(15 23 42)
-    );
+    background-image: linear-gradient(to bottom right, rgb(76 29 149 / 0.15), rgb(15 23 42));
   }
   .dark .bg-subject-chemistry-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(124 45 18 / 0.15),
-      rgb(15 23 42)
-    );
+    background-image: linear-gradient(to bottom right, rgb(124 45 18 / 0.15), rgb(15 23 42));
   }
   .dark .bg-subject-biology-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(20 83 45 / 0.15),
-      rgb(15 23 42)
-    );
+    background-image: linear-gradient(to bottom right, rgb(20 83 45 / 0.15), rgb(15 23 42));
   }
   .dark .bg-subject-english-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(112 26 117 / 0.15),
-      rgb(15 23 42)
-    );
+    background-image: linear-gradient(to bottom right, rgb(112 26 117 / 0.15), rgb(15 23 42));
   }
   .dark .bg-subject-hindi-soft {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(120 53 15 / 0.15),
-      rgb(15 23 42)
-    );
+    background-image: linear-gradient(to bottom right, rgb(120 53 15 / 0.15), rgb(15 23 42));
   }
 }
 
@@ -699,13 +659,34 @@
   }
 }
 
+/* ✅ FIX: pulse-slow keyframe — for homepage hero floating blobs */
+@keyframes pulse-slow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+/* ✅ FIX: animate-pulse-slow class */
+.animate-pulse-slow {
+  animation: pulse-slow 8s ease-in-out infinite;
+}
+
 /* ═══════════════════════════════════════════════════════
-   RESPONSIVE — Mobile typography
+   RESPONSIVE
    ═══════════════════════════════════════════════════════ */
 
+/* ✅ FIX: iOS input zoom prevention (only on mobile) */
 @media (max-width: 767px) {
-  body {
-    font-size: 1rem;
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 
   .prose-vidyapath {
@@ -713,7 +694,6 @@
     line-height: 1.75;
   }
 
-  /* Low-end device safety — disable blur */
   .surface-glass {
     background: rgb(var(--surface) / 0.96);
     backdrop-filter: none;
@@ -748,6 +728,11 @@
   .interactive:hover {
     transform: none;
   }
+
+  /* ✅ FIX: Explicitly disable pulse-slow for reduced-motion users */
+  .animate-pulse-slow {
+    animation: none;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -767,5 +752,9 @@
   .surface-card,
   .surface {
     box-shadow: none;
+  }
+
+  .animate-pulse-slow {
+    animation: none;
   }
 }
