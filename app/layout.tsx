@@ -11,43 +11,43 @@ import { BackToTop } from '@/components/BackToTop'
 import { ToastProvider } from '@/components/ToastProvider'
 import { NprogressProvider } from '@/components/NprogressProvider'
 import { PostHogProvider } from '@/components/PostHogProvider'
+import { LanguageHtmlSync } from '@/components/LanguageHtmlSync'
 
-// ==================== FONTS ====================
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-body',
+  variable: '--font-inter',
   display: 'swap',
+  preload: true,
 })
 
 const hind = Hind({
   subsets: ['latin', 'devanagari'],
-  weight: ['400', '600', '700'],
-  variable: '--font-heading',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-hind',
   display: 'swap',
+  preload: true,
 })
 
-// ==================== VIEWPORT ====================
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
+    { media: '(prefers-color-scheme: light)', color: '#F8FAFC' },
+    { media: '(prefers-color-scheme: dark)', color: '#020617' },
   ],
 }
 
-// ==================== METADATA ====================
 export const metadata: Metadata = {
   metadataBase: new URL('https://vidyapath.in'),
   title: {
-    default:
-      'VidyaPath – Free NCERT Solutions, Notes & Govt Jobs for Indian Students',
+    default: 'VidyaPath — Free NCERT Notes & Study Material',
     template: '%s | VidyaPath',
   },
   description:
-    'Free NCERT books, solutions, state boards (UP, Bihar, MP, Rajasthan), exam results, competitive exam notes (SSC, Railway, Bank) and Rojgar Samachar – all in one place.',
+    'Free multilingual study material for Class 6–12 and competitive exams. NCERT chapters, notes, videos and PDFs in Hindi and English.',
+  applicationName: 'VidyaPath',
   keywords: [
     'NCERT', 'NCERT Solutions', 'State Boards', 'UP Board', 'Bihar Board',
     'MP Board', 'Rajasthan Board', 'Exam Results', 'Sarkari Naukri',
@@ -69,35 +69,31 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'VidyaPath – Free Study Portal for Indian Students',
-    description:
-      'NCERT, State Boards, Results, Competitive Exams, Rojgar Samachar – all free.',
-    url: 'https://vidyapath.in',
+    type: 'website',
     siteName: 'VidyaPath',
+    title: 'VidyaPath — Free Study Material for Every Student',
+    description:
+      'Free NCERT chapters, notes, videos and PDFs for Class 6–12 and competitive exams.',
+    url: 'https://vidyapath.in',
     images: [
       {
         url: 'https://vidyapath.in/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'VidyaPath – Free Study Portal',
+        alt: 'VidyaPath — Free Study Portal',
       },
     ],
     locale: 'hi_IN',
-    type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'VidyaPath – Free Study Portal',
+    title: 'VidyaPath — Free Study Material',
     description:
-      'NCERT, State Boards, Results, Competitive Exams, Rojgar Samachar – all free.',
+      'Free NCERT chapters, notes, videos and PDFs in Hindi and English.',
     images: ['https://vidyapath.in/og-image.png'],
   },
   alternates: {
-    canonical: 'https://vidyapath.in',
-    languages: {
-      en: 'https://vidyapath.in',
-      hi: 'https://vidyapath.in',
-    },
+    canonical: '/',
   },
   icons: {
     icon: [
@@ -107,15 +103,12 @@ export const metadata: Metadata = {
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
     shortcut: ['/favicon.ico'],
   },
   manifest: '/manifest.json',
 }
 
-// ==================== JSON-LD SCHEMA ====================
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -130,10 +123,6 @@ const jsonLd = {
       name: 'VidyaPath',
       url: 'https://vidyapath.in',
       logo: 'https://vidyapath.in/icon-512.png',
-      sameAs: [
-        'https://youtube.com/@vidyapath',
-        'https://twitter.com/vidyapath',
-      ],
       contactPoint: {
         '@type': 'ContactPoint',
         email: 'support@vidyapath.in',
@@ -143,7 +132,6 @@ const jsonLd = {
   ],
 }
 
-// ==================== ROOT LAYOUT ====================
 export default function RootLayout({
   children,
 }: {
@@ -155,11 +143,15 @@ export default function RootLayout({
       className={`${inter.variable} ${hind.variable}`}
       suppressHydrationWarning
     >
-      <body className="text-gray-900 dark:text-gray-100 min-h-[100dvh]">
+      <body className="min-h-[100dvh]">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+
+        <Suspense fallback={null}>
+          <LanguageHtmlSync />
+        </Suspense>
 
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <ToastProvider />
@@ -182,10 +174,10 @@ export default function RootLayout({
             </Suspense>
 
             <div className="flex-grow">
-              <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6">
-                <div className="flex flex-col lg:flex-row gap-6">
+              <div className="container mx-auto px-4 py-6">
+                <div className="flex flex-col md:flex-row gap-6">
                   <main className="flex-1 min-w-0">{children}</main>
-                  <div className="hidden lg:block lg:w-64 flex-shrink-0">
+                  <div className="hidden md:block md:w-64 flex-shrink-0">
                     <AdSidebar position="right" />
                   </div>
                 </div>

@@ -1,213 +1,771 @@
+/* app/globals.css */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ==================== BASE STYLES ==================== */
+/* =========================================================
+   VIDYAPATH DESIGN SYSTEM 2.0 — Round 5 FINAL
+   
+   Round 5 fixes:
+   • Base styles moved INSIDE @layer base (utility override-ability restored)
+   • `span` removed from aggressive word-break rule (badges/labels safe)
+   • Dark subject overrides COMPLETED (500, 900 now overridden)
+   • `.bg-subject-*-soft` gradient utilities restored (backward compat)
+   • Theme transition added (smooth dark-mode toggle)
+   • html { font-size: 16px } explicit
+   ========================================================= */
+
+/* ═══════════════════════════════════════════════════════
+   DESIGN TOKENS (variables at root — not layered, always available)
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  --foreground: 15 23 42;
+
+  --surface: 255 255 255;
+  --surface-muted: 241 245 249;
+
+  --border: 226 232 240;
+  --border-strong: 203 213 225;
+
+  --muted: 100 116 139;
+  --muted-foreground: 71 85 105;
+
+  --brand: 79 70 229;
+  --brand-foreground: 255 255 255;
+
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --radius-4xl: 2.5rem;
+
+  color-scheme: light;
+}
+
+.dark {
+  --foreground: 248 250 252; /* synced with paper.DEFAULT #F8FAFC */
+
+  --surface: 15 23 42;
+  --surface-muted: 30 41 59;
+
+  --border: 51 65 85;
+  --border-strong: 71 85 105;
+
+  --muted: 148 163 184;
+  --muted-foreground: 203 213 225;
+
+  --brand: 129 140 248;
+  --brand-foreground: 15 23 42;
+
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════
+   BASE LAYER — All base styles INSIDE @layer base
+   (so Tailwind utilities can override them)
+   ═══════════════════════════════════════════════════════ */
+
 @layer base {
   html {
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-    overflow-x: hidden;
+    font-size: 16px; /* explicit — matches browser default but prevents extension overrides */
+    min-width: 320px;
     scroll-behavior: smooth;
-    -webkit-tap-highlight-color: transparent;
-    scroll-padding-top: 5rem;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    font-family: var(--font-body), system-ui, sans-serif;
-    @apply antialiased text-gray-900 dark:text-gray-100;
-    background: linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%);
-    background-attachment: fixed;
-    min-height: 100dvh;
+    @apply bg-paper text-ink;
+    min-height: 100vh;
+    margin: 0;
+
+    background-image: radial-gradient(
+      circle at 100% 0%,
+      rgb(99 102 241 / 0.045),
+      transparent 32rem
+    );
+    background-repeat: no-repeat;
+    background-position: top right;
+
+    font-family:
+      var(--font-inter),
+      Inter,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+
+    font-size: 1rem;
+    line-height: 1.6;
     overflow-x: hidden;
-    overflow-wrap: break-word;
-    word-break: normal;
+
+    /* Smooth theme switch */
+    transition:
+      background-color 200ms ease,
+      color 200ms ease;
   }
 
   .dark body {
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-    background-attachment: fixed;
+    @apply bg-ink text-paper;
+    background-image: radial-gradient(
+      circle at 100% 0%,
+      rgb(99 102 241 / 0.08),
+      transparent 32rem
+    );
   }
 
-  /* Prevent flex children from overflowing */
-  * {
-    min-width: 0;
-  }
+  /* Headings — Hindi-first with Inter fallback */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family:
+      var(--font-hind),
+      "Hind",
+      "Noto Sans Devanagari",
+      var(--font-inter),
+      "Inter",
+      system-ui,
+      sans-serif;
 
-  /* Prevent bad word-break on headings */
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading), system-ui, sans-serif;
-    overflow-wrap: normal;
-    word-break: keep-all;
-    hyphens: none;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
     text-wrap: balance;
   }
 
-  /* iOS zoom prevention */
-  input, select, textarea, button {
-    font-size: 16px;
-  }
-
-  /* Focus visible */
-  *:focus-visible {
-    @apply outline-none ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900;
-  }
-
-  /* Image defaults */
-  img, video {
-    max-width: 100%;
-    height: auto;
-  }
-
-  /* Selection */
-  ::selection {
-    background-color: rgb(99 102 241 / 0.3);
-  }
-}
-
-/* ==================== COMPONENTS ==================== */
-@layer components {
-  .glass {
-    @apply bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-white/20 dark:border-gray-700/30 shadow-xl;
-  }
-  .glass-card {
-    @apply glass rounded-2xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.01];
-  }
-  .btn-soft {
-    @apply px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 transition-all hover:scale-105;
-  }
-}
-
-/* ==================== UTILITIES ==================== */
-@layer utilities {
-  .bg-gradient-soft {
-    @apply bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 dark:from-indigo-950 dark:via-purple-950 dark:to-pink-950;
-  }
-  .text-gradient-soft {
-    @apply bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent;
-  }
-  .animate-float {
-    animation: float 8s ease-in-out infinite;
-  }
-  .animate-fade-in-up {
-    animation: fadeInUp 0.4s ease-out forwards;
-  }
-  .animate-slide-in-top {
-    animation: slideInTop 0.2s ease-out;
-  }
-  .animate-fade-in {
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  /* Text balance */
-  .text-balance { text-wrap: balance; }
-  .text-pretty { text-wrap: pretty; }
-
-  /* Safe area */
-  .safe-top { padding-top: env(safe-area-inset-top, 0); }
-  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
-
-  /* Hide scrollbar */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar { display: none; }
-
-  /* Horizontal scroll with edge fade */
-  .breadcrumb-scroll {
-    display: flex;
-    align-items: center;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-  }
-  .breadcrumb-scroll::-webkit-scrollbar { display: none; }
-
-  /* Title safety — no bad wraps */
-  .title-safe {
+  /* ✅ FIX: `span` removed — badges, pills, chips safe now */
+  p,
+  li {
     overflow-wrap: normal;
-    word-break: keep-all;
+    word-break: normal;
     hyphens: none;
-    text-wrap: balance;
   }
 
-  /* Touch target minimum */
-  .tap-target {
-    min-height: 44px;
-    min-width: 44px;
-  }
-}
-
-/* ==================== KEYFRAMES ==================== */
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(3deg); }
-}
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideInTop {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* ==================== MOBILE OVERRIDES ==================== */
-@media (max-width: 640px) {
-  h1 { font-size: clamp(1.5rem, 6vw, 2rem) !important; line-height: 1.2 !important; }
-  h2 { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; line-height: 1.25 !important; }
-  h3 { font-size: clamp(1.125rem, 4.5vw, 1.5rem) !important; line-height: 1.3 !important; }
-
-  .rounded-3xl { border-radius: 1rem !important; }
-
-  .prose { font-size: 1rem; line-height: 1.7; }
-  .prose h2 { font-size: 1.375rem; }
-  .prose h3 { font-size: 1.125rem; }
-
-  table {
+  img,
+  svg,
+  video {
     display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* WCAG AA focus ring — light mode (4.6:1 on white) */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 3px solid #4f46e5;
+    outline-offset: 2px;
+  }
+
+  /* WCAG AA focus ring — dark mode (~11:1 on ink) */
+  .dark button:focus-visible,
+  .dark a:focus-visible,
+  .dark input:focus-visible,
+  .dark textarea:focus-visible,
+  .dark select:focus-visible,
+  .dark [tabindex]:focus-visible {
+    outline-color: #a5b4fc;
+  }
+
+  ::selection {
+    background: rgb(99 102 241 / 0.18);
+    color: rgb(var(--foreground));
   }
 }
 
-/* ==================== REDUCED MOTION ==================== */
+/* ═══════════════════════════════════════════════════════
+   COMPONENTS LAYER — Reusable class-based components
+   ═══════════════════════════════════════════════════════ */
+
+@layer components {
+  .font-heading {
+    font-family:
+      var(--font-hind),
+      "Hind",
+      "Noto Sans Devanagari",
+      var(--font-inter),
+      "Inter",
+      sans-serif;
+  }
+
+  .break-safe {
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: none;
+  }
+
+  .safe-top {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+
+  .safe-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .safe-x {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .safe-area {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+
+  .tap-target {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tap-target-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .surface {
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--border));
+  }
+
+  .surface-muted {
+    background: rgb(var(--surface-muted));
+    border: 1px solid rgb(var(--border));
+  }
+
+  .surface-card {
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--border));
+    border-radius: var(--radius-xl);
+    box-shadow:
+      0 1px 2px rgb(15 23 42 / 0.04),
+      0 4px 16px rgb(15 23 42 / 0.06);
+  }
+
+  .surface-glass {
+    background: rgb(var(--surface) / 0.88);
+    border: 1px solid rgb(var(--border) / 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .interactive {
+    transition:
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 180ms ease,
+      background-color 180ms ease;
+  }
+
+  .interactive:hover {
+    transform: translateY(-2px);
+  }
+
+  .interactive:active {
+    transform: translateY(0);
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgb(226 232 240 / 0.75) 25%,
+      rgb(241 245 249 / 0.95) 50%,
+      rgb(226 232 240 / 0.75) 75%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  .dark .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgb(30 41 59 / 0.8) 25%,
+      rgb(51 65 85 / 0.95) 50%,
+      rgb(30 41 59 / 0.8) 75%
+    );
+    background-size: 1000px 100%;
+  }
+
+  .prose-vidyapath {
+    color: rgb(var(--foreground));
+    font-size: 1rem;
+    line-height: 1.8;
+  }
+
+  .prose-vidyapath p {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .prose-vidyapath h2,
+  .prose-vidyapath h3,
+  .prose-vidyapath h4 {
+    font-family:
+      var(--font-hind),
+      "Hind",
+      "Noto Sans Devanagari",
+      var(--font-inter),
+      "Inter",
+      system-ui,
+      sans-serif;
+    color: rgb(var(--foreground));
+  }
+
+  .prose-vidyapath a {
+    color: rgb(var(--brand));
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  .prose-vidyapath img {
+    border-radius: var(--radius-xl);
+  }
+
+  /* Subject theming base classes */
+  .subject-surface {
+    background: rgb(var(--subject-50));
+    border-color: rgb(var(--subject-100));
+  }
+
+  .subject-accent {
+    color: rgb(var(--subject-600));
+  }
+
+  .subject-accent-bg {
+    background: rgb(var(--subject-600));
+  }
+
+  .subject-border {
+    border-color: rgb(var(--subject-100));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   SUBJECT THEME VARIABLES
+   (Not in a layer — pure CSS variables, always available)
+   ═══════════════════════════════════════════════════════ */
+
+.subject-math {
+  --subject-50: 239 246 255;
+  --subject-100: 219 234 254;
+  --subject-500: 59 130 246;
+  --subject-600: 37 99 235;
+  --subject-700: 29 78 216;
+  --subject-900: 30 58 138;
+}
+
+.subject-science {
+  --subject-50: 236 253 245;
+  --subject-100: 209 250 229;
+  --subject-500: 16 185 129;
+  --subject-600: 5 150 105;
+  --subject-700: 4 120 87;
+  --subject-900: 6 78 59;
+}
+
+.subject-physics {
+  --subject-50: 245 243 255;
+  --subject-100: 237 233 254;
+  --subject-500: 139 92 246;
+  --subject-600: 124 58 237;
+  --subject-700: 109 40 217;
+  --subject-900: 76 29 149;
+}
+
+.subject-chemistry {
+  --subject-50: 255 247 237;
+  --subject-100: 255 237 213;
+  --subject-500: 249 115 22;
+  --subject-600: 234 88 12;
+  --subject-700: 194 65 12;
+  --subject-900: 124 45 18;
+}
+
+.subject-biology {
+  --subject-50: 240 253 244;
+  --subject-100: 220 252 231;
+  --subject-500: 34 197 94;
+  --subject-600: 22 163 74;
+  --subject-700: 21 128 61;
+  --subject-900: 20 83 45;
+}
+
+.subject-english {
+  --subject-50: 253 244 255;
+  --subject-100: 250 232 255;
+  --subject-500: 217 70 239;
+  --subject-600: 192 38 211;
+  --subject-700: 162 28 175;
+  --subject-900: 112 26 117;
+}
+
+.subject-hindi {
+  --subject-50: 255 247 237;
+  --subject-100: 255 237 213;
+  --subject-500: 245 158 11;
+  --subject-600: 217 119 6;
+  --subject-700: 180 83 9;
+  --subject-900: 120 53 15;
+}
+
+.subject-general {
+  --subject-50: 238 242 255;
+  --subject-100: 224 231 255;
+  --subject-500: 99 102 241;
+  --subject-600: 79 70 229;
+  --subject-700: 67 56 202;
+  --subject-900: 49 46 129;
+}
+
+/* ✅ FIX: Dark mode — ALL 6 tiers overridden (was missing 500, 900) */
+
+.dark .subject-math {
+  --subject-50: 30 58 138;
+  --subject-100: 30 64 175;
+  --subject-500: 96 165 250;   /* blue-400 */
+  --subject-600: 96 165 250;   /* blue-400 accent */
+  --subject-700: 147 197 253;  /* blue-300 hover */
+  --subject-900: 191 219 254;  /* blue-200 deep — visible on dark */
+}
+
+.dark .subject-science {
+  --subject-50: 6 78 59;
+  --subject-100: 4 120 87;
+  --subject-500: 52 211 153;   /* emerald-400 */
+  --subject-600: 52 211 153;
+  --subject-700: 110 231 183;  /* emerald-300 */
+  --subject-900: 167 243 208;  /* emerald-200 */
+}
+
+.dark .subject-physics {
+  --subject-50: 76 29 149;
+  --subject-100: 91 33 182;
+  --subject-500: 167 139 250;  /* violet-400 */
+  --subject-600: 167 139 250;
+  --subject-700: 196 181 253;  /* violet-300 */
+  --subject-900: 221 214 254;  /* violet-200 */
+}
+
+.dark .subject-chemistry {
+  --subject-50: 124 45 18;
+  --subject-100: 154 52 18;
+  --subject-500: 251 146 60;   /* orange-400 */
+  --subject-600: 251 146 60;
+  --subject-700: 253 186 116;  /* orange-300 */
+  --subject-900: 254 215 170;  /* orange-200 */
+}
+
+.dark .subject-biology {
+  --subject-50: 20 83 45;
+  --subject-100: 22 101 52;
+  --subject-500: 74 222 128;   /* green-400 */
+  --subject-600: 74 222 128;
+  --subject-700: 134 239 172;  /* green-300 */
+  --subject-900: 187 247 208;  /* green-200 */
+}
+
+.dark .subject-english {
+  --subject-50: 112 26 117;
+  --subject-100: 134 25 143;
+  --subject-500: 232 121 249;  /* fuchsia-400 */
+  --subject-600: 232 121 249;
+  --subject-700: 240 171 252;  /* fuchsia-300 */
+  --subject-900: 245 208 254;  /* fuchsia-200 */
+}
+
+.dark .subject-hindi {
+  --subject-50: 120 53 15;
+  --subject-100: 146 64 14;
+  --subject-500: 251 191 36;   /* amber-400 */
+  --subject-600: 251 191 36;
+  --subject-700: 252 211 77;   /* amber-300 */
+  --subject-900: 253 230 138;  /* amber-200 */
+}
+
+.dark .subject-general {
+  --subject-50: 49 46 129;
+  --subject-100: 55 48 163;
+  --subject-500: 129 140 248;  /* indigo-400 */
+  --subject-600: 129 140 248;
+  --subject-700: 165 180 252;  /* indigo-300 */
+  --subject-900: 199 210 254;  /* indigo-200 */
+}
+
+/* ═══════════════════════════════════════════════════════
+   UTILITIES LAYER
+   ═══════════════════════════════════════════════════════ */
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184 / 0.45);
+    border-radius: 999px;
+  }
+
+  .horizontal-scroll {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .horizontal-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .horizontal-scroll > * {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+  }
+
+  .select-none {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .touch-pan-x {
+    touch-action: pan-x;
+  }
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+
+  /* ✅ FIX: Backward-compat subject gradient utilities restored
+     (Claude's original design system used these — components may still reference) */
+  .bg-subject-math-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(239 246 255),
+      #ffffff
+    );
+  }
+  .bg-subject-science-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(236 253 245),
+      #ffffff
+    );
+  }
+  .bg-subject-physics-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(245 243 255),
+      #ffffff
+    );
+  }
+  .bg-subject-chemistry-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(255 247 237),
+      #ffffff
+    );
+  }
+  .bg-subject-biology-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(240 253 244),
+      #ffffff
+    );
+  }
+  .bg-subject-english-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(253 244 255),
+      #ffffff
+    );
+  }
+  .bg-subject-hindi-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(255 247 237),
+      #ffffff
+    );
+  }
+
+  .dark .bg-subject-math-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(30 58 138 / 0.15),
+      rgb(15 23 42)
+    );
+  }
+  .dark .bg-subject-science-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(6 78 59 / 0.15),
+      rgb(15 23 42)
+    );
+  }
+  .dark .bg-subject-physics-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(76 29 149 / 0.15),
+      rgb(15 23 42)
+    );
+  }
+  .dark .bg-subject-chemistry-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(124 45 18 / 0.15),
+      rgb(15 23 42)
+    );
+  }
+  .dark .bg-subject-biology-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(20 83 45 / 0.15),
+      rgb(15 23 42)
+    );
+  }
+  .dark .bg-subject-english-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(112 26 117 / 0.15),
+      rgb(15 23 42)
+    );
+  }
+  .dark .bg-subject-hindi-soft {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(120 53 15 / 0.15),
+      rgb(15 23 42)
+    );
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   KEYFRAMES
+   ═══════════════════════════════════════════════════════ */
+
+@keyframes shimmer {
+  from {
+    background-position: -1000px 0;
+  }
+  to {
+    background-position: 1000px 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — Mobile typography
+   ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  body {
+    font-size: 1rem;
+  }
+
+  .prose-vidyapath {
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+
+  /* Low-end device safety — disable blur */
+  .surface-glass {
+    background: rgb(var(--surface) / 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .prose-vidyapath {
+    font-size: 1.0625rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════════ */
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
-  .animate-float, .animate-fade-in-up, .animate-slide-in-top, .animate-fade-in {
-    animation: none;
+
+  .interactive:hover {
+    transform: none;
   }
 }
 
-/* ==================== PRINT STYLES ==================== */
+/* ═══════════════════════════════════════════════════════
+   PRINT
+   ═══════════════════════════════════════════════════════ */
+
 @media print {
-  header, footer, .ad-sidebar, .ad-banner, .back-to-top,
-  .share-button, .comment-section, .breadcrumb, .no-print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  .no-print {
     display: none !important;
   }
-  main { padding: 0 !important; margin: 0 !important; }
-  .prose { max-width: 100% !important; }
-  body { background: white !important; color: black !important; }
-  .glass, .glass-card {
-    background: white !important;
-    backdrop-filter: none !important;
-    border: 1px solid #ddd !important;
-    box-shadow: none !important;
+
+  .surface-card,
+  .surface {
+    box-shadow: none;
   }
-  article, section, .glass-card { break-inside: avoid; }
 }
