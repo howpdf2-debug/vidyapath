@@ -1,8 +1,16 @@
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function POST() {
-  const cookieStore = await cookies()
-  cookieStore.delete('admin_session')
-  return NextResponse.json({ success: true })
+  const response = NextResponse.json({ success: true })
+
+  // ✅ Clear cookie on RESPONSE
+  response.cookies.set('admin_session', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0, // Expire immediately
+  })
+
+  return response
 }

@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // ═══════════════════════════════════════════════════════
-// MIDDLEWARE — Security Headers + Lightweight Auth Check
+// MIDDLEWARE — Security Headers + Admin Cookie Check
 // ═══════════════════════════════════════════════════════
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // ✅ CRITICAL: Propagate pathname to downstream (layout reads it)
+  // ✅ Propagate pathname to layout via header
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-pathname', pathname)
 
@@ -19,24 +19,19 @@ export function middleware(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  )
 
-  // ─── Admin Cookie Presence Check (fast, no SDK) ───
+  // ─── Admin Protection (custom password system) ───
   const isAdminPage = pathname.startsWith('/admin')
   const isLoginRoute = pathname === '/admin/login'
 
   if (isAdminPage && !isLoginRoute) {
-    // ✅ Detect Supabase auth cookie (handles chunked + excludes mid-flow)
-    const hasAuthCookie = request.cookies.getAll().some((cookie) => {
-      const n = cookie.name
-      if (!n.startsWith('sb-')) return false
-      if (!n.includes('-auth-token')) return false
-      // Exclude OAuth mid-flow cookies (code-verifier, etc.)
-      if (n.includes('code-verifier')) return false
-      return true
-    })
+    const session = request.cookies.get('admin_session')?.value
 
-    if (!hasAuthCookie) {
+    if (!session) {
       const loginUrl = new URL('/admin/login', request.url)
       loginUrl.searchParams.set('next', pathname)
       return NextResponse.redirect(loginUrl)
@@ -47,7 +42,7 @@ export function middleware(request: NextRequest) {
 }
 
 // ═══════════════════════════════════════════════════════
-// MATCHER — Skip static, PWA, sitemap files
+// MATCHER
 // ═══════════════════════════════════════════════════════
 export const config = {
   matcher: [
