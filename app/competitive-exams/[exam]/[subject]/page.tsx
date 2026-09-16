@@ -1,141 +1,178 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronRight, ArrowRight, HelpCircle } from 'lucide-react'
-import { createServerClient } from '@/lib/supabase'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  ChevronRight,
+  Home,
+  Layers,
+  Target,
+} from 'lucide-react'
 import { buildMetadata } from '@/lib/seo'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { getExam, getSubject, getTopics } from '@/lib/exams'
 
-const validExams = ['ssc', 'railway', 'bank']
-
-const examLabels: Record<string, string> = {
-  ssc: 'SSC',
-  railway: 'Railway',
-  bank: 'Bank',
-}
-
-const fallbackTopics: Record<string, string[]> = {
-  'गणित': ['बीजगणित', 'लाभ-हानि', 'साधारण ब्याज', 'चक्रवृद्धि ब्याज', 'समय-दूरी', 'अनुपात-समानुपात'],
-  'तर्क शक्ति': ['रक्त संबंध', 'दिशा-ज्ञान', 'श्रृंखला', 'कोडिंग-डिकोडिंग', 'सादृश्यता'],
-  'सामान्य अंग्रेजी': ['व्याकरण', 'शब्दावली', 'गद्यांश', 'वाक्य-सुधार'],
-  'सामान्य जागरूकता': ['इतिहास', 'भूगोल', 'संविधान', 'विज्ञान', 'करेंट अफेयर्स'],
-  'सामान्य विज्ञान': ['भौतिकी', 'रसायन', 'जीव विज्ञान', 'पर्यावरण'],
-  'मात्रात्मक अभियोग्यता': ['संख्या प्रणाली', 'बीजगणित', 'ज्यामिति', 'मेंसुरेशन', 'आंकड़े'],
-  'बैंकिंग जागरूकता': ['बैंकिंग की मूल बातें', 'RBI', 'वित्तीय बाजार', 'आर्थिक शब्दावली'],
-  'कंप्यूटर ज्ञान': ['बेसिक कंप्यूटर', 'MS Office', 'इंटरनेट', 'डेटाबेस'],
-}
-
-// ==================== SEO ====================
-export async function generateMetadata({
-  params,
-}: {
+interface PageProps {
   params: { exam: string; subject: string }
-}): Promise<Metadata> {
-  const examSlug = params.exam
-  const examLabel = examLabels[examSlug] || examSlug.toUpperCase()
-  const subjectName = decodeURIComponent(params.subject)
+  searchParams: { group?: string }
+}
+
+export async function generateStaticParams() {
+  const { EXAMS, SUBJECTS } = await import('@/lib/exams')
+  const params: { exam: string; subject: string }[] = []
+  for (const exam of EXAMS) {
+    for (const subject of SUBJECTS) {
+      params.push({ exam: exam.slug, subject: subject.slug })
+    }
+  }
+  return params
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const exam = getExam(params.exam)
+  const subject = getSubject(params.subject)
+  if (!exam || !subject) return {}
 
   return buildMetadata({
-    title: `${examLabel} ${subjectName} – Study Notes & Practice Questions | VidyaPath`,
-    description: `Free ${subjectName} study material for ${examLabel} exam. Topic-wise notes, practice questions, and important concepts.`,
-    path: `/competitive-exams/${params.exam}/${params.subject}`,
-    keywords: [
-      `${examLabel} ${subjectName}`,
-      `${subjectName} notes`,
-      `${examLabel} preparation`,
-      `${examLabel} practice questions`,
-    ],
+    title: `${subject.name_hi} (${subject.name_en}) – ${exam.name_hi} तैयारी | VidyaPath`,
+    description: `${exam.name_hi} ${subject.name_hi} — हिंदी में नोट्स, MCQ, PYQ।`,
+    path: `/competitive-exams/${exam.slug}/${subject.slug}`,
   })
 }
 
-// ==================== PAGE ====================
-export default async function CompetitiveSubjectPage({
-  params,
-}: {
-  params: { exam: string; subject: string }
-}) {
-  const { exam, subject } = params
-  const decodedSubject = decodeURIComponent(subject)
+export default function SubjectPage({ params, searchParams }: PageProps) {
+  const exam = getExam(params.exam)
+  const subject = getSubject(params.subject)
+  if (!exam || !subject) notFound()
 
-  if (!validExams.includes(exam)) notFound()
+  const currentGroup =
+    exam.groups.find((g) => g.slug === searchParams.group) || exam.groups[0]
 
-  const supabase = createServerClient()
-
-  let topics: string[] = []
-  try {
-    const { data } = await supabase
-      .from('exam_topics')
-      .select('name')
-      .eq('subject_slug', subject)
-      .order('name')
-    if (data) topics = data.map((t: any) => t.name)
-  } catch {}
-
-  const topicList = topics.length > 0 ? topics : fallbackTopics[decodedSubject] || ['Coming soon']
-  const examLabel = examLabels[exam] || exam.toUpperCase()
+  const topics = getTopics(subject.slug)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-16">
+      {/* Back */}
+      <Link
+        href={`/competitive-exams/${exam.slug}?group=${currentGroup.slug}`}
+        className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        {exam.name_hi}
+      </Link>
+
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-        <Link href="/" className="hover:text-indigo-600">Home</Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <Link href="/competitive-exams" className="hover:text-indigo-600">
-          Competitive Exams
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <Link href={`/competitive-exams/${exam}`} className="hover:text-indigo-600">
-          {examLabel}
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-gray-700 dark:text-gray-300 font-medium">
-          {decodedSubject}
-        </span>
+      <nav className="breadcrumb-scroll text-sm text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <Link href="/" className="hover:text-brand-600 flex items-center gap-1">
+            <Home className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">होम</span>
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <Link href="/competitive-exams" className="hover:text-brand-600">
+            परीक्षाएँ
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <Link
+            href={`/competitive-exams/${exam.slug}?group=${currentGroup.slug}`}
+            className="hover:text-brand-600"
+          >
+            {exam.name_hi}
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-slate-700 dark:text-slate-300 font-medium">
+            {subject.name_hi}
+          </span>
+        </div>
       </nav>
 
-      {/* Header */}
-      <header className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/40 dark:to-pink-950/40 rounded-2xl border border-purple-100 dark:border-purple-900/40 p-6 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-purple-600 dark:text-purple-400">
-              {examLabel} Exam
-            </p>
-            <h1 className="text-3xl md:text-4xl font-bold mt-1">{decodedSubject}</h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
-              Topic-wise notes aur practice questions
-            </p>
-          </div>
-          <LanguageToggle />
-        </div>
-      </header>
+      {/* ═══ HERO ═══ */}
+      <section
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${subject.gradient} p-6 sm:p-10 text-white`}
+      >
+        <div className="absolute -top-24 -right-24 w-72 h-72 bg-white/20 rounded-full blur-[100px] animate-pulse-slow" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-white/15 rounded-full blur-[100px] animate-pulse-slow" />
 
-      {/* Topics */}
+        <div className="relative z-10">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs font-medium mb-5 border border-white/20">
+            <Target className="w-3.5 h-3.5" />
+            <span>
+              {exam.name_hi} • {currentGroup.name_hi}
+            </span>
+          </div>
+
+          {/* Title */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="text-5xl sm:text-6xl">{subject.icon}</div>
+            <div>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
+                {subject.name_hi}
+              </h1>
+              <p className="text-base text-white/80 mt-1">
+                {subject.name_en}
+              </p>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+              <Layers className="w-3.5 h-3.5" />
+              {topics.length} टॉपिक
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+              <BookOpen className="w-3.5 h-3.5" />
+              {topics.length * 10}+ MCQ
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ TOPICS ═══ */}
       <section>
-        <h2 className="text-2xl font-bold mb-4">Topics</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {topicList.map((topic) => (
-            <Link
-              key={topic}
-              href={`/competitive-exams/${exam}/${encodeURIComponent(decodedSubject)}/${encodeURIComponent(topic)}`}
-              className="group bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-700 transition"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/40">
-                  <HelpCircle className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400 mb-2">
+            <Layers className="w-3.5 h-3.5" />
+            Topics
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            टॉपिक चुनें
+          </h2>
+        </div>
+
+        {topics.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {topics.map((topic, idx) => (
+              <Link
+                key={topic.slug}
+                href={`/competitive-exams/${exam.slug}/${subject.slug}/${topic.slug}?group=${currentGroup.slug}`}
+                className="group flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-brand-400 dark:hover:border-brand-600 hover:shadow-xl transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                <div
+                  className={`w-11 h-11 rounded-xl bg-gradient-to-br ${subject.gradient} flex items-center justify-center text-white font-black text-base shadow-md group-hover:scale-105 transition-transform flex-shrink-0`}
+                >
+                  {idx + 1}
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-bold group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
-                    {topic}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition truncate">
+                    {topic.name_hi}
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Notes & questions
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {topic.short} • {topic.name_en}
                   </p>
                 </div>
-                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition" />
-              </div>
-            </Link>
-          ))}
-        </div>
+                <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-brand-600 group-hover:translate-x-1 transition flex-shrink-0" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="surface-card p-10 text-center">
+            <div className="text-5xl mb-4">📚</div>
+            <p className="text-slate-500">टॉपिक जल्द आ रहे हैं।</p>
+          </div>
+        )}
       </section>
     </div>
   )

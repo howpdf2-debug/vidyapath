@@ -1,150 +1,281 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronRight, Home, BookOpen, ArrowRight } from 'lucide-react'
-import { createServerClient } from '@/lib/supabase'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Home,
+  Sparkles,
+  ChevronRight,
+  Target,
+  Trophy,
+  FileText,
+} from 'lucide-react'
 import { buildMetadata } from '@/lib/seo'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { EXAMS, SUBJECTS, TOPICS, getExam, getSubject, getTopics } from '@/lib/exams'
 
-const validExams = ['ssc', 'railway', 'bank']
-
-const examDetails: Record<string, { name: string; icon: string; description: string }> = {
-  ssc: {
-    name: 'SSC (Staff Selection Commission)',
-    icon: '📘',
-    description: 'SSC CGL, CHSL, MTS, CPO – notes and practice questions in Hindi.',
-  },
-  railway: {
-    name: 'Railway Exams (RRB)',
-    icon: '🚆',
-    description: 'RRB NTPC, Group D, ALP, JE – notes and practice questions in Hindi.',
-  },
-  bank: {
-    name: 'Bank Exams (IBPS, SBI, RBI)',
-    icon: '🏦',
-    description: 'IBPS PO/Clerk, SBI PO/Clerk, RBI Assistant – notes and practice questions in Hindi.',
-  },
-}
-
-const fallbackSubjects: Record<string, string[]> = {
-  ssc: ['गणित', 'तर्क शक्ति', 'सामान्य अंग्रेजी', 'सामान्य जागरूकता'],
-  railway: ['गणित', 'तर्क शक्ति', 'सामान्य विज्ञान', 'सामान्य जागरूकता'],
-  bank: ['मात्रात्मक अभियोग्यता', 'तर्क शक्ति', 'अंग्रेजी भाषा', 'बैंकिंग जागरूकता', 'कंप्यूटर ज्ञान'],
-}
-
-// ==================== SEO ====================
-export async function generateMetadata({
-  params,
-}: {
+interface PageProps {
   params: { exam: string }
-}): Promise<Metadata> {
-  const examSlug = params.exam
-  const examInfo = examDetails[examSlug]
-  const examName = examInfo?.name || examSlug.toUpperCase()
+  searchParams: { group?: string }
+}
+
+export async function generateStaticParams() {
+  return EXAMS.map((exam) => ({ exam: exam.slug }))
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const exam = getExam(params.exam)
+  if (!exam) return {}
 
   return buildMetadata({
-    title: `${examName} 2026 – Syllabus, Notes, Practice Questions | VidyaPath`,
-    description: `${examInfo?.description || `${examName} preparation guide`}. Free study notes, practice questions, and exam pattern for Indian students.`,
-    path: `/competitive-exams/${examSlug}`,
+    title: `${exam.name_hi} (${exam.name_en}) तैयारी – Free Notes, MCQ | VidyaPath`,
+    description: `${exam.full_name_hi} की मुफ़्त तैयारी — हिंदी में नोट्स, MCQ, PYQ।`,
+    path: `/competitive-exams/${exam.slug}`,
     keywords: [
-      `${examName} exam`,
-      `${examName} syllabus`,
-      `${examName} preparation`,
-      `${examName} notes`,
-      'competitive exam preparation',
+      exam.name_hi,
+      exam.name_en,
+      'competitive exam',
+      'free study material',
+      'hindi medium',
     ],
   })
 }
 
-// ==================== PAGE ====================
-export default async function CompetitiveExamPage({
-  params,
-}: {
-  params: { exam: string }
-}) {
-  const { exam } = params
-  const examInfo = examDetails[exam]
+export default function ExamPage({ params, searchParams }: PageProps) {
+  const exam = getExam(params.exam)
+  if (!exam) notFound()
 
-  if (!validExams.includes(exam) || !examInfo) notFound()
+  const currentGroup =
+    exam.groups.find((g) => g.slug === searchParams.group) || exam.groups[0]
 
-  const supabase = createServerClient()
-
-  let subjects: string[] = []
-  try {
-    const { data } = await supabase
-      .from('exam_subjects')
-      .select('name')
-      .eq('exam_id', exam)
-      .order('name')
-    if (data) subjects = data.map((s: any) => s.name)
-  } catch {}
-
-  const subjectList = subjects.length > 0 ? subjects : fallbackSubjects[exam] || []
+  const groupSubjects = SUBJECTS
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 sm:space-y-12 pb-16">
+      {/* Back */}
+      <Link
+        href="/competitive-exams"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        सभी परीक्षाएँ
+      </Link>
+
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-        <Link href="/" className="hover:text-indigo-600">Home</Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <Link href="/competitive-exams" className="hover:text-indigo-600">
-          Competitive Exams
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-gray-700 dark:text-gray-300 font-medium">
-          {examInfo.name}
-        </span>
+      <nav className="breadcrumb-scroll text-sm text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <Link href="/" className="hover:text-brand-600 flex items-center gap-1">
+            <Home className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">होम</span>
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <Link href="/competitive-exams" className="hover:text-brand-600">
+            प्रतियोगी परीक्षाएँ
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-slate-700 dark:text-slate-300 font-medium">
+            {exam.name_hi}
+          </span>
+        </div>
       </nav>
 
-      {/* Header */}
-      <header className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/40 dark:to-pink-950/40 rounded-2xl border border-purple-100 dark:border-purple-900/40 p-6 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-4 flex-1">
-            <div className="text-4xl">{examInfo.icon}</div>
+      {/* ═══ HERO ═══ */}
+      <section
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${exam.gradient} p-6 sm:p-10 md:p-12 text-white`}
+      >
+        <div className="absolute -top-24 -left-24 w-80 h-80 bg-white/20 rounded-full blur-[100px] animate-pulse-slow" />
+        <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-white/15 rounded-full blur-[100px] animate-pulse-slow" />
+
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: `linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)`,
+            backgroundSize: '40px 40px',
+          }}
+        />
+
+        <div className="relative z-10">
+          {/* Row 1: badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs font-medium mb-5 border border-white/20">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{exam.full_name_en}</span>
+          </div>
+
+          {/* Row 2: emoji + title */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="text-5xl sm:text-6xl">{exam.emoji}</div>
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold">{examInfo.name}</h1>
-              <p className="mt-2 text-gray-600 dark:text-gray-300">
-                {examInfo.description}
-              </p>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
+                {exam.name_hi}
+              </h1>
+              <p className="text-base text-white/80 mt-1">{exam.name_en}</p>
             </div>
           </div>
-          <LanguageToggle />
-        </div>
-      </header>
 
-      {/* Subjects */}
-      <section>
-        <h2 className="text-2xl font-bold mb-4">Subjects</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subjectList.map((subject) => (
-            <Link
-              key={subject}
-              href={`/competitive-exams/${exam}/${encodeURIComponent(subject)}`}
-              className="group bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-700 transition"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/40">
-                  <BookOpen className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
-                {subject}
-              </h3>
-              <div className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-purple-600 dark:text-purple-400">
-                View topics <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
-              </div>
-            </Link>
-          ))}
-        </div>
+          <p className="text-sm sm:text-base text-white/85 max-w-2xl mb-6 text-pretty">
+            {exam.description_hi}
+          </p>
 
-        {subjectList.length === 0 && (
-          <div className="text-center py-12 bg-white/60 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400">
-              Subjects will be added soon.
-            </p>
+          {/* Stats */}
+          <div className="flex flex-wrap gap-2 text-xs sm:text-sm mb-6">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+              <Target className="w-3.5 h-3.5" />
+              {exam.groups.length} ग्रुप
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+              <BookOpen className="w-3.5 h-3.5" />
+              {SUBJECTS.length} विषय
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+              <FileText className="w-3.5 h-3.5" />
+              {Object.values(TOPICS).flat().length} टॉपिक
+            </span>
           </div>
-        )}
+
+          {/* Group tabs */}
+          <GroupTabsWrapper groups={exam.groups} currentGroup={currentGroup.slug} />
+        </div>
       </section>
+
+      {/* Current group info */}
+      <section className="surface-card p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center text-white font-black shadow-lg">
+            {currentGroup.name_hi.charAt(0)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-slate-900 dark:text-white">
+              {currentGroup.full_name_hi}
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {currentGroup.full_name_en}
+            </p>
+            {currentGroup.posts_hi.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {currentGroup.posts_hi.map((post) => (
+                  <span
+                    key={post}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                  >
+                    {post}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ SUBJECTS ═══ */}
+      <section>
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400 mb-2">
+            <BookOpen className="w-3.5 h-3.5" />
+            Subjects
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            विषय चुनें
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {groupSubjects.map((subject) => {
+            const topicCount = getTopics(subject.slug).length
+
+            return (
+              <Link
+                key={subject.slug}
+                href={`/competitive-exams/${exam.slug}/${subject.slug}?group=${currentGroup.slug}`}
+                className="group relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-transparent p-5 transition-all hover:shadow-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                <div
+                  className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${subject.gradient} opacity-0 group-hover:opacity-100 transition-opacity -z-10`}
+                />
+                <div className="absolute inset-[1px] rounded-2xl bg-white dark:bg-slate-900 -z-10" />
+
+                <div className="relative">
+                  <div className="flex items-start justify-between mb-4">
+                    <div
+                      className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${subject.gradient} flex items-center justify-center text-3xl shadow-lg group-hover:scale-110 group-hover:-rotate-3 transition-transform`}
+                    >
+                      {subject.icon}
+                    </div>
+                    {subject.is_gk && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 uppercase">
+                        GK
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white mb-0.5">
+                    {subject.name_hi}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                    {subject.name_en}
+                  </p>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      {topicCount} टॉपिक
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 text-sm font-bold bg-gradient-to-r ${subject.gradient} bg-clip-text text-transparent`}
+                    >
+                      खोलें
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-900 dark:text-white group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+// Inline group tabs (client component wrapper)
+function GroupTabsWrapper({
+  groups,
+  currentGroup,
+}: {
+  groups: any[]
+  currentGroup: string
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Group selection"
+      className="inline-flex items-center gap-1 p-1 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 overflow-x-auto scrollbar-none max-w-full"
+    >
+      {groups.map((group) => {
+        const active = group.slug === currentGroup
+        return (
+          <Link
+            key={group.slug}
+            href={`?group=${group.slug}`}
+            scroll={false}
+            role="tab"
+            aria-selected={active}
+            className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+              active
+                ? 'bg-white text-slate-900 shadow-lg'
+                : 'text-white/85 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <span>{group.name_hi}</span>
+            <span
+              className={`text-[10px] font-medium ${
+                active ? 'text-slate-500' : 'text-white/60'
+              }`}
+            >
+              ({group.name_en})
+            </span>
+          </Link>
+        )
+      })}
     </div>
   )
 }

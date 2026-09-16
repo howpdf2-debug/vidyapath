@@ -1,12 +1,19 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { EXAMS, SUBJECTS, TOPICS } from '@/lib/exams'
 
 // ==================== CONSTANTS ====================
-const SITE_URL = 'https://vidyapath.in'
+// ✅ FIX: Use env variable (fallback to vercel URL until domain connected)
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ||
+  'https://vidyapath-psi.vercel.app'
+
 const LANGUAGES = ['en', 'hi'] as const
 const STATE_BOARDS = ['up', 'bihar', 'mp', 'rajasthan'] as const
-const CLASSES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const
-const EXAMS = ['ssc', 'railway', 'bank'] as const
+const CLASSES = [6, 7, 8, 9, 10, 11, 12] as const
+
+// ✅ FIX: Stable lastModified — monthly refresh
+const CONTENT_LASTMOD = new Date('2026-01-01')
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,17 +22,50 @@ const supabase = createClient(
 )
 
 // ==================== HELPERS ====================
-function makeAlternates(path: string) {
-  const languages: Record<string, string> = {}
-  for (const lang of LANGUAGES) {
-    languages[lang] = `${SITE_URL}${path}?lang=${lang}`
+
+// ✅ FIX: Slug-safe encoding (Hindi subjects → slugs)
+function slugify(text: string): string {
+  const map: Record<string, string> = {
+    'गणित': 'math',
+    'विज्ञान': 'science',
+    'सामान्य विज्ञान': 'science',
+    'भौतिकी': 'physics',
+    'रसायन विज्ञान': 'chemistry',
+    'जीव विज्ञान': 'biology',
+    'अंग्रेज़ी': 'english',
+    'हिंदी': 'hindi',
+    'इतिहास': 'history',
+    'भूगोल': 'geography',
+    'राजव्यवस्था': 'polity',
+    'अर्थव्यवस्था': 'economy',
+    'करेंट अफेयर्स': 'ca',
+    'स्टेटिक जीके': 'static-gk',
+    'विविध': 'misc',
   }
-  return { languages }
+  if (map[text]) return map[text]
+  // Fallback: lowercase + dash
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+}
+
+// ✅ FIX: Hindi-first x-default
+function makeAlternates(path: string) {
+  return {
+    languages: {
+      // ✅ Hindi as x-default (site is Hindi-first)
+      'x-default': `${SITE_URL}${path}`,
+      en: `${SITE_URL}${path}?lang=en`,
+      hi: `${SITE_URL}${path}?lang=hi`,
+    },
+  }
 }
 
 function makeEntry({
   path,
-  lastModified = new Date(),
+  lastModified = CONTENT_LASTMOD,
   priority = 0.5,
   changeFrequency = 'weekly',
   includeLanguages = true,
@@ -42,7 +82,7 @@ function makeEntry({
 
   return {
     url,
-    lastModified: isNaN(lastMod.getTime()) ? new Date() : lastMod,
+    lastModified: isNaN(lastMod.getTime()) ? CONTENT_LASTMOD : lastMod,
     changeFrequency,
     priority,
     alternates: includeLanguages ? makeAlternates(path) : undefined,
@@ -53,13 +93,14 @@ function makeEntry({
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = []
 
-  // ⚠️ NEW: Lookup map for ncert info (needed by notes section)
   const ncertMap = new Map<
     number,
     { class: number; subject: string; chapter_num: number }
   >()
 
-  // ===== 1. STATIC PAGES =====
+  // ═══════════════════════════════════════════════════════
+  // 1. STATIC PAGES
+  // ═══════════════════════════════════════════════════════
   const staticPages: Array<{
     path: string
     priority: number
@@ -72,8 +113,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/state-boards', priority: 0.9, changeFrequency: 'weekly' },
     { path: '/rojgar-samachar', priority: 0.9, changeFrequency: 'daily' },
     { path: '/results', priority: 0.8, changeFrequency: 'daily' },
-    { path: '/about', priority: 0.5, changeFrequency: 'monthly' },
-    { path: '/contact', priority: 0.5, changeFrequency: 'monthly' },
+    { path: '/search', priority: 0.5, changeFrequency: 'weekly', includeLanguages: false } as any,
+    { path: '/about', priority: 0.4, changeFrequency: 'monthly' },
+    { path: '/contact', priority: 0.4, changeFrequency: 'monthly' },
     { path: '/privacy', priority: 0.3, changeFrequency: 'yearly' },
     { path: '/terms', priority: 0.3, changeFrequency: 'yearly' },
     { path: '/dmca', priority: 0.3, changeFrequency: 'yearly' },
@@ -85,23 +127,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         path: page.path,
         priority: page.priority,
         changeFrequency: page.changeFrequency,
+        includeLanguages: (page as any).includeLanguages !== false,
       })
     )
   }
 
-  // ===== 2. NCERT CHAPTERS =====
-  // ✅ FIX: 'id' bhi select karo (needed for notes lookup)
+  // ═══════════════════════════════════════════════════════
+  // 2. NCERT — Class + Subject + Chapter
+  // ═══════════════════════════════════════════════════════
   try {
     const { data: ncertData, error } = await supabase
       .from('ncert')
       .select('id, class, subject, chapter_num, language')
 
     if (error) {
-      console.warn('[sitemap] NCERT query error:', error.message)
+      console.warn('[sitemap] NCERT query skipped:', error.message)
     }
 
     if (ncertData && ncertData.length > 0) {
-      // Build lookup map for notes section
+      // Lookup map
       for (const item of ncertData) {
         if (item.id) {
           ncertMap.set(item.id, {
@@ -112,13 +156,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }
       }
 
-      // Subject-level pages (unique class + subject)
+      // ✅ FIX: Add class-level pages
+      const classSet = new Set<number>()
       const subjectSet = new Set<string>()
       const chapterSet = new Set<string>()
 
       for (const item of ncertData) {
-        if (item.class && item.subject) {
-          const combo = `${item.class}/${encodeURIComponent(item.subject)}`
+        if (!item.class) continue
+        classSet.add(item.class)
+
+        if (item.subject) {
+          const subjectSlug = slugify(item.subject)
+          const combo = `${item.class}/${subjectSlug}`
           subjectSet.add(combo)
 
           if (item.chapter_num) {
@@ -127,7 +176,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }
       }
 
-      // Add subject-level pages
+      // Class pages
+      for (const cls of Array.from(classSet)) {
+        entries.push(
+          makeEntry({
+            path: `/ncert/${cls}`,
+            priority: 0.85,
+            changeFrequency: 'weekly',
+          })
+        )
+      }
+
+      // Subject pages
       for (const combo of Array.from(subjectSet)) {
         entries.push(
           makeEntry({
@@ -138,7 +198,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         )
       }
 
-      // Add chapter-level pages
+      // Chapter pages
       for (const combo of Array.from(chapterSet)) {
         entries.push(
           makeEntry({
@@ -150,28 +210,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       console.log(
-        `[sitemap] NCERT: ${subjectSet.size} subjects, ${chapterSet.size} chapters (map: ${ncertMap.size})`
+        `[sitemap] NCERT: ${classSet.size} classes, ${subjectSet.size} subjects, ${chapterSet.size} chapters`
       )
-    } else {
-      console.warn('[sitemap] NCERT: no data found')
     }
   } catch (err: any) {
-    console.warn('[sitemap] NCERT fetch failed:', err?.message || err)
+    console.warn('[sitemap] NCERT skipped:', err?.message || err)
   }
 
-  // ===== 3. NOTES CHAPTERS =====
-  // ✅ FIX: chapter_notes me class/subject/chapter_num NAHI hain
-  // Sirf ncert_id hai — usse ncertMap me lookup karo
+  // ═══════════════════════════════════════════════════════
+  // 3. NOTES — Class + Subject + Chapter
+  // ═══════════════════════════════════════════════════════
   try {
     const { data: notesData, error } = await supabase
       .from('chapter_notes')
       .select('ncert_id')
 
     if (error) {
-      console.warn('[sitemap] Notes query error:', error.message)
+      console.warn('[sitemap] Notes query skipped:', error.message)
     }
 
     if (notesData && notesData.length > 0) {
+      const classSet = new Set<number>()
       const subjectSet = new Set<string>()
       const chapterSet = new Set<string>()
 
@@ -180,7 +239,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         const ncert = ncertMap.get(note.ncert_id)
         if (!ncert) continue
 
-        const combo = `${ncert.class}/${encodeURIComponent(ncert.subject)}`
+        classSet.add(ncert.class)
+        const subjectSlug = slugify(ncert.subject)
+        const combo = `${ncert.class}/${subjectSlug}`
         subjectSet.add(combo)
 
         if (ncert.chapter_num) {
@@ -188,6 +249,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }
       }
 
+      // Class pages
+      for (const cls of Array.from(classSet)) {
+        entries.push(
+          makeEntry({
+            path: `/notes/${cls}`,
+            priority: 0.85,
+            changeFrequency: 'weekly',
+          })
+        )
+      }
+
+      // Subject pages
       for (const combo of Array.from(subjectSet)) {
         entries.push(
           makeEntry({
@@ -198,6 +271,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         )
       }
 
+      // Chapter pages
       for (const combo of Array.from(chapterSet)) {
         entries.push(
           makeEntry({
@@ -209,112 +283,64 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       console.log(
-        `[sitemap] Notes: ${subjectSet.size} subjects, ${chapterSet.size} chapters (from ${notesData.length} notes)`
+        `[sitemap] Notes: ${classSet.size} classes, ${subjectSet.size} subjects, ${chapterSet.size} chapters`
       )
     }
   } catch (err: any) {
-    console.warn('[sitemap] Notes fetch failed:', err?.message || err)
+    console.warn('[sitemap] Notes skipped:', err?.message || err)
   }
 
-  // ===== 4. COMPETITIVE EXAMS =====
-  // Exam root pages (static)
+  // ═══════════════════════════════════════════════════════
+  // 4. COMPETITIVE EXAMS (Static from lib/exams.ts)
+  // ═══════════════════════════════════════════════════════
   for (const exam of EXAMS) {
     entries.push(
       makeEntry({
-        path: `/competitive-exams/${exam}`,
-        priority: 0.8,
+        path: `/competitive-exams/${exam.slug}`,
+        priority: 0.85,
         changeFrequency: 'weekly',
       })
     )
-  }
 
-  // Subject pages from DB
-  try {
-    const { data: subjects, error } = await supabase
-      .from('exam_subjects')
-      .select('*')
+    for (const group of exam.groups) {
+      entries.push(
+        makeEntry({
+          path: `/competitive-exams/${exam.slug}/${group.slug}`,
+          priority: 0.8,
+          changeFrequency: 'weekly',
+        })
+      )
 
-    if (error) {
-      console.warn('[sitemap] Exam subjects query error:', error.message)
-    }
-
-    if (subjects && subjects.length > 0) {
-      for (const sub of subjects) {
-        const anySub = sub as any
-
-        const examSlug =
-          anySub.exam_slug || anySub.exam_id || anySub.exam || null
-        const subjectSlug =
-          anySub.slug ||
-          anySub.name ||
-          anySub.subject_slug ||
-          anySub.subject ||
-          null
-
-        if (!examSlug || !subjectSlug) continue
-
+      for (const subject of SUBJECTS) {
         entries.push(
           makeEntry({
-            path: `/competitive-exams/${examSlug}/${encodeURIComponent(subjectSlug)}`,
+            path: `/competitive-exams/${exam.slug}/${group.slug}/${subject.slug}`,
             priority: 0.7,
             changeFrequency: 'weekly',
           })
         )
-      }
-      console.log(`[sitemap] Exam subjects: ${subjects.length}`)
-    }
-  } catch (err: any) {
-    console.warn('[sitemap] Exam subjects fetch failed:', err?.message || err)
-  }
 
-  // Topic pages from DB
-  try {
-    const { data: topics, error } = await supabase
-      .from('exam_topics')
-      .select('*')
-
-    if (error) {
-      console.warn('[sitemap] Exam topics query error:', error.message)
-    }
-
-    if (topics && topics.length > 0) {
-      for (const t of topics) {
-        const anyT = t as any
-
-        const examSlug = anyT.exam_slug || anyT.exam_id || null
-        const subjectSlug =
-          anyT.subject_slug || anyT.subject_id || anyT.subject || null
-        const topicSlug =
-          anyT.slug || anyT.name || anyT.topic_slug || anyT.topic || null
-
-        // Handle "ssc/गणित" style subject_slug
-        let exam = examSlug
-        let subject = subjectSlug
-        const subjectStr = subjectSlug != null ? String(subjectSlug) : ''
-        if (!exam && subjectStr && subjectStr.includes('/')) {
-          const parts = subjectStr.split('/')
-          exam = parts[0]
-          subject = parts.slice(1).join('/')
+        const topics = TOPICS[subject.slug] || []
+        for (const topic of topics) {
+          entries.push(
+            makeEntry({
+              path: `/competitive-exams/${exam.slug}/${group.slug}/${subject.slug}/${topic.slug}`,
+              priority: 0.6,
+              changeFrequency: 'monthly',
+            })
+          )
         }
-
-        if (!exam || !subject || !topicSlug) continue
-
-        entries.push(
-          makeEntry({
-            path: `/competitive-exams/${exam}/${encodeURIComponent(subject)}/${encodeURIComponent(topicSlug)}`,
-            priority: 0.6,
-            changeFrequency: 'monthly',
-          })
-        )
       }
-      console.log(`[sitemap] Exam topics: ${topics.length}`)
     }
-  } catch (err: any) {
-    console.warn('[sitemap] Exam topics fetch failed:', err?.message || err)
   }
 
-  // ===== 5. STATE BOARDS =====
-  // Board root pages
+  console.log(
+    `[sitemap] Exams: ${EXAMS.length} exams, ${EXAMS.reduce((s, e) => s + e.groups.length, 0)} groups`
+  )
+
+  // ═══════════════════════════════════════════════════════
+  // 5. STATE BOARDS — Root + Class + Subject
+  // ═══════════════════════════════════════════════════════
   for (const board of STATE_BOARDS) {
     entries.push(
       makeEntry({
@@ -324,61 +350,91 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })
     )
 
-    // Class 1-12 pages
     for (const cls of CLASSES) {
       entries.push(
         makeEntry({
           path: `/state-boards/${board}/${cls}`,
-          priority: 0.6,
+          priority: 0.65,
           changeFrequency: 'weekly',
         })
       )
     }
   }
 
-  // Subject-level pages from state_books
+  // Subject-level pages (from NCERT Hindi data)
   try {
-    const { data: stateBooks, error } = await supabase
-      .from('state_books')
-      .select('board_name, class, subject, language')
+    const { data: hindiData, error } = await supabase
+      .from('ncert')
+      .select('class, subject')
+      .eq('language', 'hi')
 
     if (error) {
-      console.warn('[sitemap] State books query error:', error.message)
+      console.warn('[sitemap] State boards query skipped:', error.message)
     }
 
-    if (stateBooks && stateBooks.length > 0) {
-      const seen = new Set<string>()
-      for (const book of stateBooks) {
-        if (!book.board_name || !book.class || !book.subject) continue
-        const path = `/state-boards/${book.board_name}/${book.class}/${encodeURIComponent(book.subject)}`
-        if (seen.has(path)) continue
-        seen.add(path)
+    if (hindiData && hindiData.length > 0) {
+      const subjectSet = new Set<string>()
 
+      for (const item of hindiData) {
+        if (!item.class || !item.subject) continue
+        const subjectSlug = slugify(item.subject)
+
+        for (const board of STATE_BOARDS) {
+          subjectSet.add(`${board}/${item.class}/${subjectSlug}`)
+        }
+      }
+
+      for (const combo of Array.from(subjectSet)) {
         entries.push(
           makeEntry({
-            path,
-            priority: 0.6,
+            path: `/state-boards/${combo}`,
+            priority: 0.55,
             changeFrequency: 'monthly',
           })
         )
       }
-      console.log(`[sitemap] State books: ${seen.size} unique subjects`)
+
+      console.log(`[sitemap] State boards subjects: ${subjectSet.size}`)
     }
   } catch (err: any) {
-    console.warn('[sitemap] State books fetch failed:', err?.message || err)
+    console.warn('[sitemap] State boards skipped:', err?.message || err)
   }
 
-  // ===== 6. ROJGAR SAMACHAR =====
+  // ═══════════════════════════════════════════════════════
+  // 6. ROJGAR SAMACHAR (with detail pages)
+  // ═══════════════════════════════════════════════════════
   try {
-    const { data: newsData } = await supabase
+    const { data: newsData, error } = await supabase
       .from('rojgar_samachar')
-      .select('language')
-      .limit(50)
+      .select('id, language, published_date')
+      .order('published_date', { ascending: false })
+      .limit(200)
+
+    if (error) {
+      console.warn('[sitemap] Rojgar query skipped:', error.message)
+    }
 
     if (newsData && newsData.length > 0) {
-      const langs = new Set(newsData.map((n) => n.language))
+      const langs = new Set<string>()
+
+      for (const item of newsData) {
+        if (item.language) langs.add(item.language)
+
+        // ✅ FIX: Add detail pages
+        if (item.id) {
+          entries.push(
+            makeEntry({
+              path: `/rojgar-samachar/${item.id}`,
+              priority: 0.6,
+              changeFrequency: 'monthly',
+              lastModified: item.published_date || CONTENT_LASTMOD,
+            })
+          )
+        }
+      }
+
+      // Lang-filtered root
       for (const lang of Array.from(langs)) {
-        if (!lang) continue
         entries.push(
           makeEntry({
             path: `/rojgar-samachar?lang=${lang}`,
@@ -388,21 +444,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           })
         )
       }
+
+      console.log(`[sitemap] Rojgar: ${newsData.length} items`)
     }
   } catch (err: any) {
-    console.warn('[sitemap] Rojgar Samachar fetch failed:', err?.message || err)
+    console.warn('[sitemap] Rojgar skipped:', err?.message || err)
   }
 
-  // ===== 7. DEDUPLICATE =====
+  // ═══════════════════════════════════════════════════════
+  // 7. DEDUPLICATE (normalized)
+  // ═══════════════════════════════════════════════════════
   const seenUrls = new Set<string>()
   const deduped: MetadataRoute.Sitemap = []
+
   for (const entry of entries) {
-    if (seenUrls.has(entry.url)) continue
-    seenUrls.add(entry.url)
+    // ✅ FIX: Normalize (lowercase + trailing slash remove) for dedup
+    const normalized = entry.url.toLowerCase().replace(/\/$/, '')
+    if (seenUrls.has(normalized)) continue
+    seenUrls.add(normalized)
     deduped.push(entry)
   }
 
-  // ===== 8. SORT BY PRIORITY =====
+  // ═══════════════════════════════════════════════════════
+  // 8. SORT BY PRIORITY
+  // ═══════════════════════════════════════════════════════
   deduped.sort((a, b) => {
     const pa = a.priority ?? 0.5
     const pb = b.priority ?? 0.5
