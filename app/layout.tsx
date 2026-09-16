@@ -20,7 +20,7 @@ const inter = Inter({
 })
 
 const hind = Hind({
-  subsets: ['latin'],
+  subsets: ['latin', 'devanagari'],
   weight: ['400', '600', '700'],
   variable: '--font-heading',
   display: 'swap',
@@ -31,7 +31,11 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#4f46e5',
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
+  ],
 }
 
 // ==================== METADATA ====================
@@ -45,20 +49,9 @@ export const metadata: Metadata = {
   description:
     'Free NCERT books, solutions, state boards (UP, Bihar, MP, Rajasthan), exam results, competitive exam notes (SSC, Railway, Bank) and Rojgar Samachar – all in one place.',
   keywords: [
-    'NCERT',
-    'NCERT Solutions',
-    'State Boards',
-    'UP Board',
-    'Bihar Board',
-    'MP Board',
-    'Rajasthan Board',
-    'Exam Results',
-    'Sarkari Naukri',
-    'Competitive Exams',
-    'SSC',
-    'Railway',
-    'Bank',
-    'Free Study Material',
+    'NCERT', 'NCERT Solutions', 'State Boards', 'UP Board', 'Bihar Board',
+    'MP Board', 'Rajasthan Board', 'Exam Results', 'Sarkari Naukri',
+    'Competitive Exams', 'SSC', 'Railway', 'Bank', 'Free Study Material',
     'Indian Students',
   ],
   authors: [{ name: 'VidyaPath Team' }],
@@ -102,8 +95,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://vidyapath.in',
     languages: {
-      en: 'https://vidyapath.in/en',
-      hi: 'https://vidyapath.in/hi',
+      en: 'https://vidyapath.in',
+      hi: 'https://vidyapath.in',
     },
   },
   icons: {
@@ -120,9 +113,6 @@ export const metadata: Metadata = {
     shortcut: ['/favicon.ico'],
   },
   manifest: '/manifest.json',
-  verification: {
-    google: 'your-google-verification-code',
-  },
 }
 
 // ==================== JSON-LD SCHEMA ====================
@@ -134,11 +124,6 @@ const jsonLd = {
       url: 'https://vidyapath.in',
       name: 'VidyaPath',
       description: 'Free study portal for Indian students.',
-      potentialAction: {
-        '@type': 'SearchAction',
-        target: 'https://vidyapath.in/search?q={search_term_string}',
-        'query-input': 'required name=search_term_string',
-      },
     },
     {
       '@type': 'Organization',
@@ -170,48 +155,43 @@ export default function RootLayout({
       className={`${inter.variable} ${hind.variable}`}
       suppressHydrationWarning
     >
-      <body className="text-gray-900 dark:text-gray-100">
-        {/* JSON-LD structured data */}
+      <body className="text-gray-900 dark:text-gray-100 min-h-[100dvh]">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
 
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          {/* Toast Notifications */}
           <ToastProvider />
 
-          {/* Nprogress Loading Bar */}
           <Suspense fallback={null}>
             <NprogressProvider />
           </Suspense>
 
-          {/* PostHog Analytics */}
           <Suspense fallback={null}>
             <PostHogProvider />
           </Suspense>
 
           <div className="min-h-screen flex flex-col">
-            {/* Header */}
             <Suspense
               fallback={
-                <div className="h-16 border-b border-gray-200 dark:border-gray-800" />
+                <div className="h-14 sm:h-16 border-b border-gray-200 dark:border-gray-800" />
               }
             >
               <Header />
             </Suspense>
 
-            {/* Main Content with Sidebar */}
-            <div className="flex-grow flex">
-              <div className="flex-1 container mx-auto px-4 py-6">
+            <div className="flex-grow">
+              <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6">
                 <div className="flex flex-col lg:flex-row gap-6">
                   <main className="flex-1 min-w-0">{children}</main>
-                  <AdSidebar position="right" />
+                  <div className="hidden lg:block lg:w-64 flex-shrink-0">
+                    <AdSidebar position="right" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer + Extras */}
             <Footer />
             <AdBanner />
             <BackToTop />

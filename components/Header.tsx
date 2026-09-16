@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import {
   Menu,
   X,
@@ -13,6 +14,7 @@ import {
   MapPin,
   ChevronDown,
   Briefcase,
+  Search,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { SearchBar } from './SearchBar'
@@ -39,6 +41,7 @@ export function Header() {
   const [user, setUser] = useState<any>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const { theme, setTheme } = useTheme()
+  const pathname = usePathname()
 
   const boardRef = useRef<HTMLDivElement>(null)
   const competitiveRef = useRef<HTMLDivElement>(null)
@@ -46,6 +49,28 @@ export function Header() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Close menu on route change
+  useEffect(() => {
+    setIsMenuOpen(false)
+    setIsBoardOpen(false)
+    setIsCompetitiveOpen(false)
+  }, [pathname])
+
+  // Body scroll lock + Escape key
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden'
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setIsMenuOpen(false)
+      }
+      document.addEventListener('keydown', handleEsc)
+      return () => {
+        document.body.style.overflow = ''
+        document.removeEventListener('keydown', handleEsc)
+      }
+    }
+  }, [isMenuOpen])
 
   // Supabase auth
   useEffect(() => {
@@ -89,342 +114,372 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-3">
-        {/* ==================== LOGO ==================== */}
-        <Link
-          href="/"
-          className="flex items-center gap-2 flex-shrink-0 group"
-          aria-label="VidyaPath Home"
-        >
-          <div className="relative w-9 h-9 rounded-lg overflow-hidden shadow-md group-hover:scale-105 transition">
-            <Image
-              src="/icon-192.png"
-              alt="VidyaPath Logo"
-              width={36}
-              height={36}
-              className="w-full h-full object-cover"
-              priority
-            />
-          </div>
-          <span className="text-2xl font-bold tracking-tight">
-            <span className="text-indigo-600 dark:text-indigo-400">Vidya</span>
-            <span className="text-orange-500">Path</span>
-          </span>
-        </Link>
-
-        {/* ==================== DESKTOP NAV ==================== */}
-        <nav className="hidden lg:flex items-center gap-3 flex-1 text-sm font-medium">
+    <>
+      <header className="sticky top-0 z-50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]">
+        <div className="container mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-3">
+          {/* LOGO */}
           <Link
-            href="/ncert"
-            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap"
+            href="/"
+            className="flex items-center gap-2 flex-shrink-0 group"
+            aria-label="VidyaPath Home"
           >
-            NCERT
+            <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shadow-md group-hover:scale-105 transition">
+              <Image
+                src="/icon-192.png"
+                alt="VidyaPath Logo"
+                width={36}
+                height={36}
+                className="w-full h-full object-cover"
+                priority
+              />
+            </div>
+            <span className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight">
+              <span className="text-indigo-600 dark:text-indigo-400">Vidya</span>
+              <span className="text-orange-500">Path</span>
+            </span>
           </Link>
 
-          {/* State Boards Dropdown */}
-          <div className="relative" ref={boardRef}>
-            <button
-              onClick={() => setIsBoardOpen(!isBoardOpen)}
-              className="flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap"
-              aria-label="Toggle State Boards dropdown"
+          {/* DESKTOP NAV */}
+          <nav className="hidden md:flex items-center gap-2 lg:gap-3 flex-1 text-sm font-medium">
+            <Link
+              href="/ncert"
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
             >
-              <MapPin className="w-4 h-4" />
-              State Boards
-              <ChevronDown
-                className={`w-4 h-4 transition-transform duration-200 ${
-                  isBoardOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+              NCERT
+            </Link>
 
-            {isBoardOpen && (
-              <div className="absolute left-0 top-full mt-2 w-56 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 py-2">
+            {/* State Boards */}
+            <div className="relative" ref={boardRef}>
+              <button
+                onClick={() => setIsBoardOpen(!isBoardOpen)}
+                className="flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
+                aria-label="Toggle State Boards dropdown"
+                aria-expanded={isBoardOpen}
+              >
+                <MapPin className="w-4 h-4" />
+                <span className="hidden lg:inline">State Boards</span>
+                <span className="lg:hidden">Boards</span>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    isBoardOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {isBoardOpen && (
+                <div className="absolute left-0 top-full mt-2 w-56 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 py-2 animate-slide-in-top">
+                  {stateBoards.map((board) => (
+                    <Link
+                      key={board.slug}
+                      href={`/state-boards/${board.slug}`}
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition group"
+                      onClick={() => setIsBoardOpen(false)}
+                    >
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${board.color}`}
+                      />
+                      <span className="text-sm text-gray-800 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                        {board.name}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Competitive Exams */}
+            <div className="relative" ref={competitiveRef}>
+              <button
+                onClick={() => setIsCompetitiveOpen(!isCompetitiveOpen)}
+                className="flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
+                aria-label="Toggle Competitive Exams dropdown"
+                aria-expanded={isCompetitiveOpen}
+              >
+                <Briefcase className="w-4 h-4" />
+                Exams
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    isCompetitiveOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {isCompetitiveOpen && (
+                <div className="absolute left-0 top-full mt-2 w-48 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50 animate-slide-in-top">
+                  {competitiveExams.map((exam) => (
+                    <Link
+                      key={exam.slug}
+                      href={`/competitive-exams/${exam.slug}`}
+                      className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition hover:text-indigo-600 dark:hover:text-indigo-400"
+                      onClick={() => setIsCompetitiveOpen(false)}
+                    >
+                      {exam.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/notes"
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
+            >
+              Notes
+            </Link>
+            <Link
+              href="/results"
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 hidden lg:inline-flex"
+            >
+              Results
+            </Link>
+            <Link
+              href="/rojgar-samachar"
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 hidden lg:inline-flex"
+            >
+              Rojgar
+            </Link>
+
+            <div className="ml-auto hidden lg:block">
+              <SearchBar />
+            </div>
+          </nav>
+
+          {/* RIGHT ACTIONS */}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* Mobile search icon */}
+            <Link
+              href="/search"
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
+              aria-label="Search"
+            >
+              <Search className="w-5 h-5" />
+            </Link>
+
+            {/* Theme toggle */}
+            {mounted && (
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
+                aria-label={
+                  theme === 'dark'
+                    ? 'Switch to light mode'
+                    : 'Switch to dark mode'
+                }
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-5 h-5" />
+                ) : (
+                  <Moon className="w-5 h-5" />
+                )}
+              </button>
+            )}
+
+            {/* Desktop Auth */}
+            <div className="hidden md:flex items-center gap-2">
+              {authLoading ? (
+                <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+              ) : user ? (
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="text-sm text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap hidden lg:inline"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-1 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 whitespace-nowrap"
+                  >
+                    <UserIcon className="w-4 h-4" />
+                    <span className="hidden lg:inline">
+                      {user.user_metadata?.full_name ||
+                        user.email?.split('@')[0] ||
+                        'Profile'}
+                    </span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
+                    aria-label="Logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    className="text-sm text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="text-sm bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition whitespace-nowrap"
+                  >
+                    Sign Up
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {/* Hamburger */}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
+              aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isMenuOpen}
+            >
+              {isMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* MOBILE DRAWER */}
+      {isMenuOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40 md:hidden animate-fade-in"
+            onClick={() => setIsMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed top-14 sm:top-16 left-0 right-0 z-50 md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 max-h-[calc(100dvh-3.5rem)] overflow-y-auto animate-slide-in-top">
+            <div className="p-4 space-y-1 safe-bottom">
+              <div className="pb-3 mb-2 border-b border-gray-200 dark:border-gray-700">
+                <SearchBar />
+              </div>
+
+              <Link
+                href="/ncert"
+                className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                📚 NCERT
+              </Link>
+              <Link
+                href="/notes"
+                className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                📝 Notes
+              </Link>
+
+              {/* State Boards */}
+              <div className="py-2">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1 px-3">
+                  State Boards
+                </p>
                 {stateBoards.map((board) => (
                   <Link
                     key={board.slug}
                     href={`/state-boards/${board.slug}`}
-                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition group"
-                    onClick={() => setIsBoardOpen(false)}
+                    className="flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
+                    onClick={() => setIsMenuOpen(false)}
                   >
                     <span
-                      className={`w-2.5 h-2.5 rounded-full ${board.color}`}
+                      className={`w-2 h-2 rounded-full ${board.color}`}
                     />
-                    <span className="text-sm text-gray-800 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
-                      {board.name}
-                    </span>
+                    {board.name}
                   </Link>
                 ))}
               </div>
-            )}
-          </div>
 
-          {/* Competitive Exams Dropdown */}
-          <div className="relative" ref={competitiveRef}>
-            <button
-              onClick={() => setIsCompetitiveOpen(!isCompetitiveOpen)}
-              className="flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap"
-              aria-label="Toggle Competitive Exams dropdown"
-            >
-              <Briefcase className="w-4 h-4" />
-              Exams
-              <ChevronDown
-                className={`w-4 h-4 transition-transform duration-200 ${
-                  isCompetitiveOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-
-            {isCompetitiveOpen && (
-              <div className="absolute left-0 top-full mt-2 w-48 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50">
+              {/* Competitive Exams */}
+              <div className="py-2">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1 px-3">
+                  Competitive Exams
+                </p>
                 {competitiveExams.map((exam) => (
                   <Link
                     key={exam.slug}
                     href={`/competitive-exams/${exam.slug}`}
-                    className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition hover:text-indigo-600 dark:hover:text-indigo-400"
-                    onClick={() => setIsCompetitiveOpen(false)}
+                    className="block py-2.5 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
+                    onClick={() => setIsMenuOpen(false)}
                   >
                     {exam.name}
                   </Link>
                 ))}
               </div>
-            )}
-          </div>
 
-          <Link
-            href="/notes"
-            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap"
-          >
-            Notes
-          </Link>
-          <Link
-            href="/results"
-            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap"
-          >
-            Results
-          </Link>
-          <Link
-            href="/rojgar-samachar"
-            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap"
-          >
-            Rojgar
-          </Link>
-
-          <div className="ml-auto">
-            <SearchBar />
-          </div>
-        </nav>
-
-        {/* ==================== RIGHT ACTIONS ==================== */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Theme toggle */}
-          {mounted && (
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-              aria-label={
-                theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
-              }
-            >
-              {theme === 'dark' ? (
-                <Sun className="w-5 h-5" />
-              ) : (
-                <Moon className="w-5 h-5" />
-              )}
-            </button>
-          )}
-
-          {/* Desktop Auth */}
-          <div className="hidden lg:flex items-center gap-2">
-            {authLoading ? (
-              <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-            ) : user ? (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="text-sm text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-1 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 whitespace-nowrap"
-                >
-                  <UserIcon className="w-4 h-4" />
-                  {user.user_metadata?.full_name ||
-                    user.email?.split('@')[0] ||
-                    'Profile'}
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
-                  aria-label="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="text-sm text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap"
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/signup"
-                  className="text-sm bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition whitespace-nowrap"
-                >
-                  Sign Up
-                </Link>
-              </>
-            )}
-          </div>
-
-          {/* Hamburger */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
-          >
-            {isMenuOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* ==================== MOBILE / DRAWER MENU ==================== */}
-      {isMenuOpen && (
-        <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 space-y-2 max-h-[80vh] overflow-y-auto">
-          <div className="lg:hidden pb-3">
-            <SearchBar />
-          </div>
-
-          <Link
-            href="/ncert"
-            className="block py-2 hover:text-indigo-600 dark:hover:text-indigo-400"
-            onClick={() => setIsMenuOpen(false)}
-          >
-            NCERT
-          </Link>
-
-          {/* Mobile State Boards */}
-          <div className="py-1">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">
-              State Boards
-            </p>
-            {stateBoards.map((board) => (
               <Link
-                key={board.slug}
-                href={`/state-boards/${board.slug}`}
-                className="flex items-center gap-2 py-2 pl-3 text-sm hover:text-indigo-600 dark:hover:text-indigo-400"
+                href="/results"
+                className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
                 onClick={() => setIsMenuOpen(false)}
               >
-                <span className={`w-2 h-2 rounded-full ${board.color}`} />
-                {board.name}
+                📊 Results
               </Link>
-            ))}
-          </div>
-
-          {/* Mobile Competitive Exams */}
-          <div className="py-1">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">
-              Competitive Exams
-            </p>
-            {competitiveExams.map((exam) => (
               <Link
-                key={exam.slug}
-                href={`/competitive-exams/${exam.slug}`}
-                className="block py-2 pl-3 text-sm hover:text-indigo-600 dark:hover:text-indigo-400"
+                href="/rojgar-samachar"
+                className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
                 onClick={() => setIsMenuOpen(false)}
               >
-                {exam.name}
+                📰 Rojgar Samachar
               </Link>
-            ))}
-          </div>
 
-          <Link
-            href="/notes"
-            className="block py-2 hover:text-indigo-600 dark:hover:text-indigo-400"
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Notes
-          </Link>
-          <Link
-            href="/results"
-            className="block py-2 hover:text-indigo-600 dark:hover:text-indigo-400"
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Results
-          </Link>
-          <Link
-            href="/rojgar-samachar"
-            className="block py-2 hover:text-indigo-600 dark:hover:text-indigo-400"
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Rojgar Samachar
-          </Link>
-
-          {/* Auth */}
-          <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-            {authLoading ? (
-              <div className="w-24 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-            ) : user ? (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="block py-2 text-gray-700 dark:text-gray-200"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/profile"
-                  className="block py-2 font-medium text-indigo-600 dark:text-indigo-400"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {user.user_metadata?.full_name ||
-                    user.email?.split('@')[0] ||
-                    'Profile'}
-                </Link>
-                <Link
-                  href="/bookmarks"
-                  className="block py-2 text-gray-700 dark:text-gray-200"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Bookmarks
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="block w-full text-left py-2 text-red-500 hover:text-red-700"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="block py-2 text-gray-700 dark:text-gray-200"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/signup"
-                  className="block py-2 px-4 bg-indigo-600 text-white text-center rounded-lg hover:bg-indigo-700"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Sign Up
-                </Link>
-              </>
-            )}
+              {/* Auth */}
+              <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-700 space-y-1">
+                {authLoading ? (
+                  <div className="w-24 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mx-3" />
+                ) : user ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      href="/profile"
+                      className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-indigo-600 dark:text-indigo-400"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      {user.user_metadata?.full_name ||
+                        user.email?.split('@')[0] ||
+                        'Profile'}
+                    </Link>
+                    <Link
+                      href="/bookmarks"
+                      className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Bookmarks
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="block w-full text-left py-3 px-3 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 font-medium"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="block py-3 px-3 bg-indigo-600 text-white text-center rounded-lg hover:bg-indigo-700 font-medium"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Sign Up
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        </>
       )}
-    </header>
+    </>
   )
 }

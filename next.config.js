@@ -6,9 +6,7 @@ const isDev = process.env.NODE_ENV === 'development'
 
 const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
-  // ✅ FIX: Dev me SW register NAHI hoga — sirf production me
   register: !isDev,
-  // ✅ FIX: Dev me PWA fully disabled
   disable: isDev,
   skipWaiting: true,
   cacheOnFrontEndNav: true,
@@ -17,10 +15,8 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   swcMinify: true,
   workboxOptions: {
     disableDevLogs: true,
-    // ✅ Skip waiting for old service workers to prevent stale chunks
     skipWaiting: true,
     clientsClaim: true,
-    // ✅ Clean old caches automatically
     cleanupOutdatedCaches: true,
   },
 })
@@ -28,13 +24,10 @@ const withPWA = require('@ducanh2912/next-pwa').default({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-
-  // ✅ Production optimizations
   compress: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
 
-  // ✅ Remove console logs in production (keep errors/warnings)
   compiler: {
     removeConsole:
       process.env.NODE_ENV === 'production'
@@ -42,35 +35,36 @@ const nextConfig = {
         : false,
   },
 
-  // ✅ Optimize large package imports (tree-shaking)
   experimental: {
-    optimizePackageImports: ['lucide-react', 'react-hot-toast', 'date-fns'],
+    optimizePackageImports: ['lucide-react', 'react-hot-toast'],
   },
 
   images: {
     formats: ['image/avif', 'image/webp'],
-    minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
+    minimumCacheTTL: 60 * 60 * 24 * 30,
+    deviceSizes: [360, 414, 640, 750, 828, 1080, 1200, 1920, 2048],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },
       { protocol: 'https', hostname: '**.vercel.app' },
+      { protocol: 'https', hostname: 'i.ytimg.com' },
+      { protocol: 'https', hostname: 'img.youtube.com' },
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
     ],
   },
 
-  // ✅ Security headers
   async headers() {
     return [
       {
         source: '/(.*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         ],
       },
-      // ✅ FIX: Dev me sw.js cache na ho — always fresh
       {
         source: '/sw.js',
         headers: [
@@ -85,5 +79,4 @@ const nextConfig = {
   },
 }
 
-// ✅ Wrap order: bundle analyzer OUTSIDE, PWA INSIDE
 module.exports = withBundleAnalyzer(withPWA(nextConfig))
