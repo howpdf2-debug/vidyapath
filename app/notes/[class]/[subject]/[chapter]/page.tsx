@@ -33,7 +33,7 @@ export async function generateMetadata({
       .from('ncert')
       .select('chapter_title')
       .eq('class', parseInt(classNum, 10))
-      .eq('subject', subjectName)  // ⚠️ FIX: capitalized subject
+      .eq('subject', subjectName)
       .eq('chapter_num', parseInt(chapterNum, 10))
       .eq('language', lang)
       .maybeSingle()
@@ -67,8 +67,6 @@ export default async function NotesChapterPage({
     .replace(/\b\w/g, (c) => c.toUpperCase())
 
   const subjectName = subject
-
-  // ⚠️ Keep raw subject for URL building (lowercase URL preserve)
   const rawSubject = params.subject
 
   const supabase = createServerClient()
@@ -77,7 +75,7 @@ export default async function NotesChapterPage({
     .from('ncert')
     .select('id, class, chapter_num, chapter_title, book_code, pdf_url, language')
     .eq('class', classNum)
-    .eq('subject', subject)  // ⚠️ FIX: capitalized
+    .eq('subject', subject)
     .eq('chapter_num', chapterNum)
     .eq('language', lang)
     .maybeSingle()
@@ -90,17 +88,17 @@ export default async function NotesChapterPage({
     .eq('ncert_id', chapter.id)
     .order('order_index', { ascending: true })
 
-  let youtubeId: string | null = null
-  try {
-    const { data: video } = await supabase
-      .from('chapter_videos')
-      .select('youtube_id')
-      .eq('ncert_id', chapter.id)
-      .maybeSingle()
-    youtubeId = video?.youtube_id || null
-  } catch {
-    youtubeId = null
-  }
+  // ⚠️ UPDATED: Multiple videos fetch (featured first, then order)
+  const { data: videos } = await supabase
+    .from('chapter_videos')
+    .select(
+      'id, youtube_id, title, description, thumbnail_url, duration_seconds, video_type, language, order_index, is_featured'
+    )
+    .eq('ncert_id', chapter.id)
+    .eq('is_active', true)
+    .eq('language', lang)
+    .order('is_featured', { ascending: false })
+    .order('order_index', { ascending: true })
 
   let isLoggedIn = false
   try {
@@ -184,10 +182,11 @@ export default async function NotesChapterPage({
         </div>
       )}
 
+      {/* ⚠️ UPDATED: Multiple videos */}
       <VideoSection
         chapterId={chapter.id}
         chapterTitle={chapter.chapter_title}
-        youtubeId={youtubeId}
+        videos={videos || []}
         language={lang}
         isLoggedIn={isLoggedIn}
       />
@@ -236,7 +235,7 @@ export default async function NotesChapterPage({
           chapterTitle={chapter.chapter_title}
           notesAvailable={false}
           pdfUrl={pdfUrl}
-          youtubeId={youtubeId}
+          youtubeId={videos?.[0]?.youtube_id || null}
           isLoggedIn={isLoggedIn}
           language={lang}
         />

@@ -11,6 +11,7 @@ import { ShareButton } from '@/components/ShareButton'
 import { CommentSection } from '@/components/CommentSection'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { BackButton } from '@/components/BackButton'
+import { VideoSection } from '@/components/VideoSection'
 import { ProgressButton } from './ProgressButton'
 import { getPdfUrl } from '@/lib/pdf'
 
@@ -70,8 +71,6 @@ export default async function ChapterPage({
     .replace(/\b\w/g, (c) => c.toUpperCase())
 
   const subjectName = subject
-
-  // ⚠️ Keep raw subject for URL building (lowercase URL preserve)
   const rawSubject = params.subject
 
   const supabaseServer = createServerClient()
@@ -91,6 +90,18 @@ export default async function ChapterPage({
     .from('chapter_notes')
     .select('*')
     .eq('ncert_id', chapter.id)
+    .order('order_index', { ascending: true })
+
+  // ⚠️ NEW: Multiple videos fetch (featured first, then order)
+  const { data: videos } = await supabaseServer
+    .from('chapter_videos')
+    .select(
+      'id, youtube_id, title, description, thumbnail_url, duration_seconds, video_type, language, order_index, is_featured'
+    )
+    .eq('ncert_id', chapter.id)
+    .eq('is_active', true)
+    .eq('language', lang)
+    .order('is_featured', { ascending: false })
     .order('order_index', { ascending: true })
 
   const session = await getServerSession()
@@ -132,7 +143,7 @@ export default async function ChapterPage({
         <BackButton
           href={`/ncert/${classNum}/${rawSubject}?lang=${lang}`}
           label="Back to chapters"
-          language={lang}
+          language={lang as 'en' | 'hi'}
         />
 
         <Breadcrumb
@@ -193,6 +204,15 @@ export default async function ChapterPage({
             url={canonicalUrl}
           />
         </div>
+
+        {/* ⚠️ NEW: Video Section */}
+        <VideoSection
+          chapterId={chapter.id}
+          chapterTitle={chapter.chapter_title}
+          videos={videos || []}
+          language={lang}
+          isLoggedIn={isLoggedIn}
+        />
 
         <div className="space-y-6">
           {notes && notes.length > 0 ? (
