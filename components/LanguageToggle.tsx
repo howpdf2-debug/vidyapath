@@ -1,46 +1,50 @@
 'use client'
 
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { Globe } from 'lucide-react'
+import { useSearchParams, usePathname, useRouter } from 'next/navigation'
 
 export function LanguageToggle() {
-  const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const router = useRouter()
 
-  // ✅ 'hi' ya 'en' — short codes
   const currentLang = searchParams.get('lang') === 'hi' ? 'hi' : 'en'
 
-  const switchTo = (lang: 'hi' | 'en') => {
-    if (lang === currentLang) return
+  const setLang = (newLang: 'en' | 'hi') => {
     const params = new URLSearchParams(searchParams.toString())
-    params.set('lang', lang)
-    params.set('page', '1')
-    router.push(`${pathname}?${params.toString()}`)
+    if (newLang === 'en') {
+      params.delete('lang')
+    } else {
+      params.set('lang', newLang)
+    }
+    const query = params.toString()
+    router.push(`${pathname}${query ? `?${query}` : ''}`, { scroll: false })
   }
 
   return (
-    <div className="flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm p-1">
-      <Globe className="w-4 h-4 text-gray-400 ml-2" />
+    <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-white/15 backdrop-blur-md border border-white/20">
       <button
-        onClick={() => switchTo('en')}
-        className={`px-3 py-1 text-sm font-medium rounded-full transition ${
+        onClick={() => setLang('en')}
+        aria-label="Switch to English"
+        aria-pressed={currentLang === 'en'}
+        className={`px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold transition ${
           currentLang === 'en'
-            ? 'bg-indigo-600 text-white shadow-sm'
-            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            ? 'bg-white text-slate-900 shadow-sm'
+            : 'text-white/80 hover:text-white'
         }`}
       >
-        English
+        EN
       </button>
       <button
-        onClick={() => switchTo('hi')}
-        className={`px-3 py-1 text-sm font-medium rounded-full transition ${
+        onClick={() => setLang('hi')}
+        aria-label="हिंदी में बदलें"
+        aria-pressed={currentLang === 'hi'}
+        className={`px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold transition ${
           currentLang === 'hi'
-            ? 'bg-indigo-600 text-white shadow-sm'
-            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            ? 'bg-white text-slate-900 shadow-sm'
+            : 'text-white/80 hover:text-white'
         }`}
       >
-        हिंदी
+        हिं
       </button>
     </div>
   )

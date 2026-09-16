@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect } from 'react'
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
 import Link from 'next/link'
+import { Home, RefreshCw, AlertTriangle } from 'lucide-react'
 
-export default function Error({
+export default function GlobalError({
   error,
   reset,
 }: {
@@ -12,43 +12,43 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('App error:', error)
+    // Log to error monitoring (Sentry/PostHog) if configured
+    console.error('[App Error]', error)
   }, [error])
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl p-8 text-center">
-        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-          <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
-        </div>
+    <div className="max-w-2xl mx-auto py-16 sm:py-24 text-center">
+      <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-red-50 dark:bg-red-950/40 mb-6">
+        <AlertTriangle className="w-10 h-10 text-red-600 dark:text-red-400" />
+      </div>
 
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-          Kuch galat ho gaya
-        </h1>
-        <p className="text-gray-600 dark:text-gray-300 mt-2 text-sm">
-          Something went wrong. Please try again.
+      <h1 className="text-[clamp(1.5rem,4vw,2.5rem)] font-black text-slate-900 dark:text-white tracking-tight mb-3">
+        Kuch galat ho gaya
+      </h1>
+      <p className="text-slate-600 dark:text-slate-400 mb-2 max-w-md mx-auto">
+        Page load karte waqt error aaya. Please retry karo.
+      </p>
+      {error.digest && (
+        <p className="text-xs text-slate-400 mb-8 font-mono">
+          Error ID: {error.digest}
         </p>
+      )}
 
-        {error.digest && (
-          <p className="text-xs text-gray-400 mt-2 font-mono">
-            Error ID: {error.digest}
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-3 justify-center mt-6">
-          <button
-            onClick={reset}
-            className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /> Try Again
-          </button>
-          <Link
-            href="/"
-            className="px-5 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition flex items-center gap-2"
-          >
-            <Home className="w-4 h-4" /> Home
-          </Link>
-        </div>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={reset}
+          className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-brand-600 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg hover:scale-[1.02] transition"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Try Again
+        </button>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+        >
+          <Home className="w-4 h-4" />
+          Go Home
+        </Link>
       </div>
     </div>
   )

@@ -758,3 +758,150 @@
     animation: none;
   }
 }
+/* ═══════════════════════════════════════════════════════
+   ROUND 7 — Hindi matra, WCAG, iOS zoom, motion
+   ═══════════════════════════════════════════════════════ */
+
+/* ✅ FIX #23: Hindi matra crop — extra line-height for Devanagari */
+:lang(hi) h1,
+:lang(hi) h2,
+:lang(hi) h3,
+:lang(hi) h4,
+:lang(hi) h5,
+:lang(hi) h6,
+.lang-hi h1,
+.lang-hi h2,
+.lang-hi h3,
+.lang-hi h4,
+.lang-hi h5,
+.lang-hi h6 {
+  line-height: 1.35;
+  padding-top: 0.15em;
+  padding-bottom: 0.1em;
+}
+
+/* Hindi body text — slightly more line-height */
+:lang(hi) p,
+:lang(hi) li,
+.lang-hi p,
+.lang-hi li {
+  line-height: 1.75;
+}
+
+/* ✅ FIX #56: WCAG AA — placeholder text contrast */
+::placeholder {
+  color: rgb(100 116 139 / 0.75); /* slate-500 at 75% */
+}
+.dark ::placeholder {
+  color: rgb(148 163 184 / 0.75); /* slate-400 at 75% */
+}
+
+/* ✅ FIX #56: Warning/success text on tinted bg — ensure 4.5:1 */
+.text-warning-on-tint {
+  color: #78350F; /* amber-900 */
+}
+.dark .text-warning-on-tint {
+  color: #FCD34D; /* amber-300 */
+}
+
+/* ✅ FIX #73: iOS input zoom prevention — ALL inputs */
+@media screen and (max-width: 767px) {
+  input,
+  select,
+  textarea,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"] {
+    font-size: 16px !important;
+  }
+}
+
+/* ✅ FIX #83: Address bar hide/show — prevent CLS */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* ✅ FIX #92: Disable ALL motion including non-hero animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-slow,
+  .animate-fade-in,
+  .animate-slide-in-top,
+  .animate-float,
+  .animate-fade-in-up {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ✅ FIX #102: Disable backdrop-blur on all mobile */
+@media (max-width: 767px) {
+  [class*="backdrop-blur"],
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* ✅ FIX #53: Hover shine effect — GPU friendly */
+@media (hover: none) {
+  .group:hover .group-hover\:translate-x-full {
+    transform: none !important;
+  }
+}
+
+/* ✅ FIX #57: Focus-visible — high contrast in both themes */
+:focus-visible {
+  outline: 3px solid #4F46E5;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.dark :focus-visible {
+  outline-color: #A5B4FC;
+}
+
+/* ✅ FIX #45: Card hover — single change (transform only) */
+.card-hover {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (hover: hover) {
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px -12px rgb(15 23 42 / 0.15);
+  }
+}
+
+/* ✅ FIX #77: Prevent horizontal scroll globally */
+body {
+  overflow-x: hidden;
+}
+pre, code {
+  overflow-x: auto;
+  max-width: 100%;
+}
+img, video, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ✅ FIX #80: Very small screens (280px Galaxy Fold) */
+@media (max-width: 320px) {
+  html {
+    font-size: 14px;
+  }
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.25rem !important; }
+}

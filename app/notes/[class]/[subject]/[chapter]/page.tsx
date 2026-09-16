@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { sanitizeHtml } from '@/lib/sanitize'
 import { notFound } from 'next/navigation'
 import { FileText, Download, ChevronRight, Home, BookOpen } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
@@ -223,8 +224,8 @@ export default async function NotesChapterPage({
                 )}
               </div>
               <div
-                className="prose prose-lg dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: note.content_html }}
+                className="prose prose-lg dark:prose-invert max-w-none break-words"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.content_html) }}
               />
             </div>
           ))}

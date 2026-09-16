@@ -174,10 +174,10 @@ export default function RootLayout({
             </Suspense>
 
             <div className="flex-grow">
-              <div className="container mx-auto px-4 py-6">
-                <div className="flex flex-col md:flex-row gap-6">
+              <div className="container mx-auto px-[clamp(1rem,2vw,2rem)] py-[clamp(1rem,2vw,1.5rem)] max-w-[1400px]">
+                <div className="flex flex-col xl:flex-row gap-[clamp(1rem,2vw,1.5rem)]">
                   <main className="flex-1 min-w-0">{children}</main>
-                  <div className="hidden md:block md:w-64 flex-shrink-0">
+                  <div className="hidden xl:block xl:w-64 flex-shrink-0">
                     <AdSidebar position="right" />
                   </div>
                 </div>

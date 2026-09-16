@@ -1,28 +1,26 @@
- 
 export default function Loading() {
   return (
-    <div className="space-y-6 animate-pulse">
-      {/* Header skeleton */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-2">
-          <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-xl w-64" />
-          <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-lg w-48" />
-        </div>
-        <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-full w-32" />
+    <div className="max-w-6xl mx-auto space-y-8 py-8 animate-pulse">
+      {/* Hero skeleton */}
+      <div className="rounded-3xl bg-slate-200 dark:bg-slate-800 h-[280px]" />
+
+      {/* Stats skeleton */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="rounded-2xl bg-slate-200 dark:bg-slate-800 h-24" />
+        ))}
       </div>
 
-      {/* Content cards */}
-      <div className="space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <div
-            key={i}
-            className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 p-6"
-          >
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-3" />
-            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2" />
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-1" />
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
-          </div>
+      {/* Section header */}
+      <div className="space-y-3">
+        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded-full" />
+        <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+      </div>
+
+      {/* Card grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="rounded-2xl bg-slate-200 dark:bg-slate-800 h-48" />
         ))}
       </div>
     </div>

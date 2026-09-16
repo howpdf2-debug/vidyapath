@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { sanitizeHtml } from '@/lib/sanitize'
 import { notFound } from 'next/navigation'
 import { FileText, Download, ChevronRight, Home, BookOpen } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
@@ -14,6 +15,7 @@ import { BackButton } from '@/components/BackButton'
 import { VideoSection } from '@/components/VideoSection'
 import { ProgressButton } from './ProgressButton'
 import { getPdfUrl } from '@/lib/pdf'
+
 
 // ==================== SEO ====================
 export async function generateMetadata({
@@ -241,8 +243,8 @@ export default async function ChapterPage({
                   )}
                 </div>
                 <div
-                  className="prose prose-lg dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: note.content_html }}
+                  className="prose prose-lg dark:prose-invert max-w-none break-words"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.content_html) }}
                 />
               </div>
             ))
