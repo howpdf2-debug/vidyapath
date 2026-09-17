@@ -1,255 +1,247 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { FileText, ArrowLeft, ChevronRight, Home, BookOpen } from 'lucide-react'
-import { createServerClient } from '@/lib/supabase'
+import { notFound } from 'next/navigation'
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight,
+  Download,
+  Home,
+  Layers,
+  BookOpen,
+} from 'lucide-react'
+import { createClient } from '@/lib/supabase'
 import { buildMetadata } from '@/lib/seo'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import {
+  STATE_BOARDS,
+  getBoard,
+  getSubjectBySlug,
+  getDbSubjectName,
+  isValidClass,
+  SUBJECT_HI_MAP,
+} from '@/lib/state-boards'
+import { getPdfUrl } from '@/lib/pdf'
 
-const boardNames: Record<string, string> = {
-  up: 'UP Board',
-  bihar: 'Bihar Board',
-  mp: 'MP Board',
-  rajasthan: 'Rajasthan Board',
+export const dynamic = 'force-dynamic'
+
+interface PageProps {
+  params: { board: string; class: string; subject: string }
 }
 
-// ==================== SEO ====================
-export async function generateMetadata({
-  params,
-  searchParams,
-}: {
-  params: { board: string; class: string; subject: string }
-  searchParams: { lang?: string }
-}): Promise<Metadata> {
-  const boardSlug = params.board
-  const boardName = boardNames[boardSlug] || boardSlug.toUpperCase()
-  const classNum = params.class
-  const subjectName = decodeURIComponent(params.subject)
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-  const lang = searchParams.lang || 'english'
+export async function generateStaticParams() {
+  const params: { board: string; class: string; subject: string }[] = []
+  for (const board of STATE_BOARDS) {
+    for (const cls of [6, 7, 8, 9, 10]) {
+      for (const meta of Object.values(SUBJECT_HI_MAP)) {
+        params.push({
+          board: board.slug,
+          class: String(cls),
+          subject: meta.slug,
+        })
+      }
+    }
+  }
+  return params
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const board = getBoard(params.board)
+  const subjectMeta = getSubjectBySlug(params.subject)
+  if (!board || !subjectMeta) return {}
 
   return buildMetadata({
-    title: `${boardName} Class ${classNum} ${subjectName} Book PDF – Download Free | VidyaPath`,
-    description: `Download ${boardName} Class ${classNum} ${subjectName} textbook PDF (${lang === 'hindi' ? 'Hindi medium' : 'English medium'}). Free download available for Indian students.`,
+    title: `Class ${params.class} ${subjectMeta.name_hi} – ${board.name_hi} हिंदी माध्यम | VidyaPath`,
+    description: `${board.name_hi} Class ${params.class} ${subjectMeta.name_hi} — NCERT हिंदी माध्यम चैप्टर-wise notes, PDF।`,
     path: `/state-boards/${params.board}/${params.class}/${params.subject}`,
-    keywords: [
-      `${boardName} class ${classNum} ${subjectName}`,
-      `${boardName} book pdf`,
-      `class ${classNum} ${subjectName} pdf`,
-      `${boardName} textbook`,
-    ],
   })
 }
 
-// ==================== PAGE ====================
-export default async function BookPage({
-  params,
-  searchParams,
-}: {
-  params: { board: string; class: string; subject: string }
-  searchParams: { lang?: string }
-}) {
-  const board = params.board
+export default async function SubjectPage({ params }: PageProps) {
+  const board = getBoard(params.board)
   const classNum = parseInt(params.class, 10)
-  const subject = decodeURIComponent(params.subject)
-  const lang = searchParams.lang || 'english'
 
-  if (isNaN(classNum)) {
-    return (
-      <div className="max-w-3xl mx-auto py-12 text-center">
-        <h1 className="text-3xl font-bold">Invalid Class</h1>
-        <Link
-          href={`/state-boards/${board}`}
-          className="inline-block mt-6 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"
-        >
-          Back to Board
-        </Link>
-      </div>
-    )
-  }
+  if (!board || !isValidClass(classNum)) notFound()
 
-  const supabase = createServerClient()
-  const boardName = boardNames[board] || board.toUpperCase()
-  const subjectName = subject
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+  const subjectMeta = getSubjectBySlug(params.subject)
+  if (!subjectMeta) notFound()
 
-  const { data: book, error } = await supabase
-    .from('state_books')
-    .select('*')
-    .eq('board_name', board)
+  const dbSubjectName = getDbSubjectName(params.subject)
+  if (!dbSubjectName) notFound()
+
+  const supabase = createClient()
+
+  const { data: chapters } = await supabase
+    .from('ncert')
+    .select('id, chapter_num, chapter_title, book_code')
     .eq('class', classNum)
-    .eq('subject', subject)
-    .eq('language', lang)
-    .maybeSingle()
-
-  // Empty state
-  if (error || !book) {
-    return (
-      <div className="max-w-3xl mx-auto space-y-6">
-        <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-          <Link href="/" className="hover:text-indigo-600">Home</Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <Link href="/state-boards" className="hover:text-indigo-600">
-            State Boards
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <Link href={`/state-boards/${board}`} className="hover:text-indigo-600">
-            {boardName}
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-gray-700 dark:text-gray-300 font-medium">
-            {subjectName}
-          </span>
-        </nav>
-
-        <div className="text-center py-12 bg-white/60 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
-          <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <h1 className="text-2xl font-bold">
-            Book Not Found
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-3">
-            No book available for {boardName} Class {classNum} – {subjectName}{' '}
-            in {lang === 'hindi' ? 'हिंदी' : 'English'} medium.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3 justify-center">
-            <Link
-              href={`/state-boards/${board}/${classNum}?lang=${lang}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"
-            >
-              ← Back to Subjects
-            </Link>
-            <Link
-              href={`/state-boards/${board}/${classNum}?lang=${lang === 'hindi' ? 'english' : 'hindi'}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700"
-            >
-              Try {lang === 'hindi' ? 'English' : 'हिंदी'}
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
-  }
+    .eq('subject', dbSubjectName)
+    .eq('language', 'hi')
+    .order('chapter_num', { ascending: true })
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-8 pb-16">
+      {/* Back */}
+      <Link
+        href={`/state-boards/${board.slug}/${classNum}`}
+        className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Class {classNum}
+      </Link>
+
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-        <Link href="/" className="hover:text-indigo-600">Home</Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <Link href="/state-boards" className="hover:text-indigo-600">
-          State Boards
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <Link href={`/state-boards/${board}`} className="hover:text-indigo-600">
-          {boardName}
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <Link
-          href={`/state-boards/${board}/${classNum}`}
-          className="hover:text-indigo-600"
-        >
-          Class {classNum}
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-gray-700 dark:text-gray-300 font-medium">
-          {subjectName}
-        </span>
+      <nav
+        aria-label="Breadcrumb"
+        className="breadcrumb-scroll text-sm text-slate-500 dark:text-slate-400"
+      >
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <Link href="/" className="hover:text-brand-600 flex items-center gap-1">
+            <Home className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">होम</span>
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <Link href="/state-boards" className="hover:text-brand-600">
+            राज्य बोर्ड
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <Link
+            href={`/state-boards/${board.slug}`}
+            className="hover:text-brand-600"
+          >
+            {board.name_hi}
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <Link
+            href={`/state-boards/${board.slug}/${classNum}`}
+            className="hover:text-brand-600"
+          >
+            Class {classNum}
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-slate-700 dark:text-slate-300 font-medium">
+            {subjectMeta.name_hi}
+          </span>
+        </div>
       </nav>
 
-      {/* Back + Language */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <Link
-          href={`/state-boards/${board}/${classNum}?lang=${lang}`}
-          className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Subjects
-        </Link>
-        <LanguageToggle />
-      </div>
+      {/* Hero */}
+      <section
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${subjectMeta.gradient} p-6 sm:p-10 text-white`}
+      >
+        <div className="absolute -top-24 -right-24 w-72 h-72 bg-white/20 rounded-full blur-[100px] animate-pulse-slow" />
 
-      {/* Header */}
-      <header className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/40 rounded-2xl border border-orange-100 dark:border-orange-900/40 p-6 md:p-8">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-xl bg-white dark:bg-gray-800 shadow-sm flex-shrink-0">
-            <BookOpen className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs font-medium mb-4 border border-white/20">
+            {board.name_hi} • Class {classNum}
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-orange-600 dark:text-orange-400">
-              {boardName} • Class {classNum} • {lang === 'hindi' ? 'हिंदी' : 'English'} Medium
-            </p>
-            <h1 className="text-3xl md:text-4xl font-bold mt-1">
-              {book.book_title}
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
-              {subjectName} – Complete textbook PDF
-            </p>
+
+          <div className="flex items-center gap-4 mb-4">
+            <div className="text-5xl sm:text-6xl">{subjectMeta.icon}</div>
+            <div>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
+                {subjectMeta.name_hi}
+              </h1>
+              <p className="text-base text-white/80 mt-1">{subjectMeta.name_en}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+              <Layers className="w-3.5 h-3.5" />
+              {chapters?.length || 0} अध्याय
+            </span>
           </div>
         </div>
-      </header>
+      </section>
 
-      {/* Download Card */}
-      <section className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-6 md:p-8 text-center">
-        {book.pdf_url ? (
-          <>
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-100 dark:bg-orange-900/40 mb-4">
-              <FileText className="w-8 h-8 text-orange-600 dark:text-orange-400" />
-            </div>
-            <h2 className="text-xl font-bold">Download the Textbook</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              Free PDF download – click the button below
-            </p>
-            <a
-              href={book.pdf_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition shadow-lg shadow-orange-500/30"
-            >
-              <FileText className="w-5 h-5" />
-              Download PDF
-            </a>
-          </>
+      {/* Chapters */}
+      <section aria-labelledby="chapters-heading">
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400 mb-2">
+            <Layers className="w-3.5 h-3.5" />
+            Chapters
+          </div>
+          <h2
+            id="chapters-heading"
+            className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight"
+          >
+            अध्याय चुनें
+          </h2>
+        </div>
+
+        {chapters && chapters.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {chapters.map((ch) => {
+              const pdfUrl = getPdfUrl(ch.book_code, classNum, ch.chapter_num)
+              const href = `/state-boards/${board.slug}/${classNum}/${params.subject}/${ch.chapter_num}`
+
+              return (
+                <div
+                  key={ch.id}
+                  className="group relative surface-card hover:shadow-cardHover hover:border-brand-300 dark:hover:border-brand-700 transition-all overflow-hidden"
+                >
+                  <div
+                    className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${subjectMeta.gradient} opacity-0 group-hover:opacity-100 transition`}
+                  />
+
+                  <div className="p-4 sm:p-5">
+                    <Link
+                      href={href}
+                      className="flex items-start gap-3 mb-3 group/link"
+                    >
+                      <div
+                        className={`flex-shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${subjectMeta.gradient} flex items-center justify-center font-bold text-white text-base sm:text-lg shadow-md group-hover/link:scale-105 transition`}
+                      >
+                        {ch.chapter_num}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium mb-1">
+                          अध्याय {ch.chapter_num}
+                        </p>
+                        <h3 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2 group-hover/link:text-brand-600 transition">
+                          {ch.chapter_title}
+                        </h3>
+                      </div>
+                    </Link>
+
+                    <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
+                      {pdfUrl && (
+                        <a
+                          href={pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 text-xs font-medium transition tap-target"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          PDF
+                        </a>
+                      )}
+                      <Link
+                        href={href}
+                        className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 text-xs font-medium transition tap-target group-hover:gap-2"
+                      >
+                        पढ़ें
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         ) : (
-          <div className="py-6">
-            <p className="text-gray-500 dark:text-gray-400">
-              PDF not available for this book.
+          <div className="surface-card text-center py-16 px-6">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-slate-100 dark:bg-slate-800 mb-4">
+              <span className="text-4xl">📖</span>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+              अध्याय जल्द आ रहे हैं
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              {subjectMeta.name_hi} के अध्याय तैयार किए जा रहे हैं।
             </p>
           </div>
         )}
-
-        {/* Dev-only debug URL */}
-        {process.env.NODE_ENV === 'development' && book.pdf_url && (
-          <p className="text-xs text-gray-400 mt-6 break-all">
-            PDF URL: {book.pdf_url}
-          </p>
-        )}
-      </section>
-
-      {/* Related Links */}
-      <section className="text-center py-4">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Aur dekho:{' '}
-          <Link
-            href="/ncert"
-            className="text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            NCERT Books
-          </Link>
-          {' · '}
-          <Link
-            href="/notes"
-            className="text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            Notes
-          </Link>
-          {' · '}
-          <Link
-            href={`/state-boards/${board}/${classNum}?lang=${lang === 'hindi' ? 'english' : 'hindi'}`}
-            className="text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            {lang === 'hindi' ? 'English Medium' : 'हिंदी Medium'}
-          </Link>
-        </p>
       </section>
     </div>
   )

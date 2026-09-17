@@ -1,9 +1,9 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient as supabaseCreateClient, type SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// ✅ Lazy singleton — pehli baar use karne pe banega
+// ✅ Lazy singleton — browser client
 let clientInstance: SupabaseClient | null = null
 
 function getSupabaseClient(): SupabaseClient {
@@ -15,7 +15,7 @@ function getSupabaseClient(): SupabaseClient {
     )
   }
 
-  clientInstance = createClient(supabaseUrl, supabaseAnonKey, {
+  clientInstance = supabaseCreateClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -26,7 +26,7 @@ function getSupabaseClient(): SupabaseClient {
   return clientInstance
 }
 
-// ✅ Proxy — har access pe lazy init
+// ✅ Browser proxy (client components ke liye)
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = getSupabaseClient()
@@ -35,14 +35,14 @@ export const supabase = new Proxy({} as SupabaseClient, {
   },
 })
 
-// Server-side factory
+// ✅ Server-side factory (ncert/page.tsx isko use karti hai)
 export const createServerClient = (): SupabaseClient => {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
       '[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY'
     )
   }
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return supabaseCreateClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -50,3 +50,7 @@ export const createServerClient = (): SupabaseClient => {
     },
   })
 }
+
+// ✅ NEW: Alias — 4 state-boards pages isko import kar rahe hain
+//    Same behaviour as createServerClient
+export const createClient = createServerClient
