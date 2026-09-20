@@ -1,37 +1,107 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin, isAdminApiError } from '@/lib/admin-api'
+import { sanitizeHtml } from '@/lib/sanitize'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+// ═══════════════════════════════════════════════════════
+// GET — Single note
+// ═══════════════════════════════════════════════════════
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const id = Number(params.id)
-  if (!Number.isInteger(id) || id < 1) {
-    return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
+  const ctx = await requireAdmin()
+  if (isAdminApiError(ctx)) return ctx.response
+
+  try {
+    const { data, error } = await ctx.adminClient
+      .from('chapter_notes')
+      .select(
+        `
+        id, ncert_id, topic, difficulty_level, order_index, created_at, content_html,
+        ncert:ncert_id (id, class, subject, chapter_num, chapter_title, language)
+      `
+      )
+      .eq('id', params.id)
+      .maybeSingle()
+
+    if (error) {
+      console.error('[admin/notes/[id] GET]', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: 'Note not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error('[admin/notes/[id] GET] Unexpected:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
+}
 
-  // TODO: Add auth check (same as main route)
+// ═══════════════════════════════════════════════════════
+// PUT — Update single note
+// ═══════════════════════════════════════════════════════
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const ctx = await requireAdmin()
+  if (isAdminApiError(ctx)) return ctx.response
 
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
+  try {
+    const body = await request.json()
 
-  const { data, error } = await supabaseAdmin
-    .from('chapter_notes')
-    .select(
-      `id, ncert_id, topic, content_html, difficulty_level, order_index, created_at,
-       ncert:ncert_id (id, class, subject, chapter_num, chapter_title, language)`
-    )
-    .eq('id', id)
-    .maybeSingle()
+    if (body.content_html) {
+      body.content_html = sanitizeHtml(body.content_html)
+    }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const { data, error } = await ctx.adminClient
+      .from('chapter_notes')
+      .update(body)
+      .eq('id', params.id)
+      .select()
 
-  return NextResponse.json({ data })
+    if (error) {
+      console.error('[admin/notes/[id] PUT]', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error('[admin/notes/[id] PUT] Unexpected:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// DELETE — Delete single note
+// ═══════════════════════════════════════════════════════
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const ctx = await requireAdmin()
+  if (isAdminApiError(ctx)) return ctx.response
+
+  try {
+    const { error } = await ctx.adminClient
+      .from('chapter_notes')
+      .delete()
+      .eq('id', params.id)
+
+    if (error) {
+      console.error('[admin/notes/[id] DELETE]', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('[admin/notes/[id] DELETE] Unexpected:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }

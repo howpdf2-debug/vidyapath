@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server'
+import { createServerClientWithCookies } from '@/lib/supabase-server'
+
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 export async function POST() {
-  const response = NextResponse.json({ success: true })
+  try {
+    const supabase = createServerClientWithCookies()
+    await supabase.auth.signOut()
 
-  // ✅ Clear cookie on RESPONSE
-  response.cookies.set('admin_session', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0, // Expire immediately
-  })
-
-  return response
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[admin/logout] Error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
 }

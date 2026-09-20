@@ -1,32 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClientWithCookies } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
+
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+// ✅ Service Role client — सिर्फ profile check के लिए (one-time)
+function getServiceRoleClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { password } = await req.json()
+    const { email, password } = await req.json()
 
-    // Validate password
-    if (!password || password !== process.env.ADMIN_PASSWORD) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'Email and password required' },
+        { status: 400 }
+      )
+    }
+
+    // 1. Sign in with Supabase Auth (sets sb-*-auth-token cookies)
+    const supabase = createServerClientWithCookies()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error || !data.user) {
+      return NextResponse.json(
+        { error: error?.message || 'Invalid credentials' },
         { status: 401 }
       )
     }
 
-    // Generate session token
-    const sessionToken = crypto.randomUUID()
+    console.log('[admin/login] Auth OK for user:', data.user.id)
 
-    // ✅ CRITICAL: Set cookie on RESPONSE (not on cookies())
-    const response = NextResponse.json({ success: true })
+    // 2. Check admin role — Service Role client (bypasses RLS)
+    const adminClient = getServiceRoleClient()
+    const { data: profile, error: profileError } = await adminClient
+      .from('profiles')
+      .select('role, email')
+      .eq('id', data.user.id)
+      .maybeSingle()
 
-    response.cookies.set('admin_session', sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 8, // 8 hours
+    console.log('[admin/login] Profile:', { profile, profileError })
+
+    if (profileError) {
+      await supabase.auth.signOut()
+      return NextResponse.json(
+        { error: `Profile check failed: ${profileError.message}` },
+        { status: 500 }
+      )
+    }
+
+    if (!profile || profile.role !== 'admin') {
+      await supabase.auth.signOut()
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
+
+    // 3. Update last_login_at
+    await adminClient
+      .from('profiles')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('id', data.user.id)
+
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        role: 'admin',
+      },
     })
-
-    return response
   } catch (error) {
     console.error('[admin/login] Error:', error)
     return NextResponse.json(

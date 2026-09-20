@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { sanitizeHtml } from '@/lib/sanitize'
 import { notFound } from 'next/navigation'
 import { FileText, Download, ChevronRight, Home, BookOpen } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
-import { getServerSession, isUserConfirmed } from '@/lib/auth'
+import { createServerClientWithCookies } from '@/lib/supabase-server'
+import { isUserConfirmed } from '@/lib/auth'
+import { getServerSession } from '@/lib/auth-server'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { BookmarkButton } from '@/components/BookmarkButton'
@@ -13,9 +14,9 @@ import { CommentSection } from '@/components/CommentSection'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { BackButton } from '@/components/BackButton'
 import { VideoSection } from '@/components/VideoSection'
+import { NotesContent } from '@/components/NotesContent'
 import { ProgressButton } from './ProgressButton'
 import { getPdfUrl } from '@/lib/pdf'
-
 
 // ==================== SEO ====================
 export async function generateMetadata({
@@ -67,7 +68,7 @@ export default async function ChapterPage({
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
-  // ⚠️ Capitalize subject for DB match (DB me 'Mathematics' hai)
+  // Capitalize subject for DB match
   const subject = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -94,7 +95,6 @@ export default async function ChapterPage({
     .eq('ncert_id', chapter.id)
     .order('order_index', { ascending: true })
 
-  // ⚠️ NEW: Multiple videos fetch (featured first, then order)
   const { data: videos } = await supabaseServer
     .from('chapter_videos')
     .select(
@@ -109,12 +109,14 @@ export default async function ChapterPage({
   const session = await getServerSession()
   const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
 
+  // Bookmark check — uses cookie-aware client for RLS
   let isBookmarked = false
-  if (isLoggedIn) {
-    const { data: bookmark } = await supabaseServer
+  if (isLoggedIn && session?.user) {
+    const supabaseAuth = createServerClientWithCookies()
+    const { data: bookmark } = await supabaseAuth
       .from('bookmarks')
       .select('id')
-      .eq('user_id', session!.user.id)
+      .eq('user_id', session.user.id)
       .eq('ncert_id', chapter.id)
       .maybeSingle()
     if (bookmark) isBookmarked = true
@@ -182,15 +184,11 @@ export default async function ChapterPage({
         </header>
 
         <div className="flex flex-wrap items-center gap-2">
-          {isLoggedIn && (
-            <BookmarkButton
-              chapterId={chapter.id}
-              initialBookmarked={isBookmarked}
-            />
-          )}
-          {isLoggedIn && (
-            <ProgressButton chapterId={chapter.id} isLoggedIn={true} />
-          )}
+          <BookmarkButton
+            chapterId={chapter.id}
+            initialBookmarked={isBookmarked}
+          />
+          <ProgressButton chapterId={chapter.id} />
           {pdfUrl && (
             <a
               href={pdfUrl}
@@ -207,7 +205,6 @@ export default async function ChapterPage({
           />
         </div>
 
-        {/* ⚠️ NEW: Video Section */}
         <VideoSection
           chapterId={chapter.id}
           chapterTitle={chapter.chapter_title}
@@ -242,10 +239,7 @@ export default async function ChapterPage({
                     </span>
                   )}
                 </div>
-                <div
-                  className="prose prose-lg dark:prose-invert max-w-none break-words"
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.content_html) }}
-                />
+                <NotesContent html={note.content_html} />
               </div>
             ))
           ) : (

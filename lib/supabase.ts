@@ -1,9 +1,18 @@
-import { createClient as supabaseCreateClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+import {
+  createClient as supabaseCreateClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// ✅ Lazy singleton — browser client
+// ═══════════════════════════════════════════════════════
+// ✅ BROWSER CLIENT (Lazy Singleton)
+//    - Student login/signup
+//    - Admin login (via API call)
+//    - Client-side operations (bookmarks, progress, admin pages)
+// ═══════════════════════════════════════════════════════
 let clientInstance: SupabaseClient | null = null
 
 function getSupabaseClient(): SupabaseClient {
@@ -15,18 +24,17 @@ function getSupabaseClient(): SupabaseClient {
     )
   }
 
-  clientInstance = supabaseCreateClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+  clientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+      path: '/',
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
     },
   })
 
   return clientInstance
 }
 
-// ✅ Browser proxy (client components ke liye)
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = getSupabaseClient()
@@ -35,7 +43,10 @@ export const supabase = new Proxy({} as SupabaseClient, {
   },
 })
 
-// ✅ Server-side factory (ncert/page.tsx isko use karti hai)
+// ═══════════════════════════════════════════════════════
+// ✅ SERVER CLIENT (Public data — NO cookies)
+//    यह 16+ public pages use करती हैं (ncert, notes, search)
+// ═══════════════════════════════════════════════════════
 export const createServerClient = (): SupabaseClient => {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
@@ -51,6 +62,5 @@ export const createServerClient = (): SupabaseClient => {
   })
 }
 
-// ✅ NEW: Alias — 4 state-boards pages isko import kar rahe hain
-//    Same behaviour as createServerClient
+// ✅ Alias (पुराने code के लिए)
 export const createClient = createServerClient

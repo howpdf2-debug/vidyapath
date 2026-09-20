@@ -1,16 +1,24 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { sanitizeHtml } from '@/lib/sanitize'
 import { notFound } from 'next/navigation'
 import { FileText, Download, ChevronRight, Home, BookOpen } from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
-import { buildMetadata } from '@/lib/seo'
+import { createServerClientWithCookies } from '@/lib/supabase-server'
+import { buildMetadata, SITE_URL } from '@/lib/seo'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { BackButton } from '@/components/BackButton'
 import { VideoSection } from '@/components/VideoSection'
 import { NotesSection } from '@/components/NotesSection'
-import { getServerSession, isUserConfirmed } from '@/lib/auth'
+import { BookmarkButton } from '@/components/BookmarkButton'
+import { ShareButton } from '@/components/ShareButton'
+import { CommentSection } from '@/components/CommentSection'
+import { ProgressButton } from '@/app/ncert/[class]/[subject]/[chapter]/ProgressButton'
+import { NotesContent } from '@/components/NotesContent'
+import { isUserConfirmed } from '@/lib/auth'
+import { getServerSession } from '@/lib/auth-server'
 import { getPdfUrl } from '@/lib/pdf'
+
+export const dynamic = 'force-dynamic'
 
 // ==================== SEO ====================
 export async function generateMetadata({
@@ -62,7 +70,6 @@ export default async function NotesChapterPage({
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
-  // ⚠️ FIX: Capitalize subject for DB match
   const subject = decodeURIComponent(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -89,7 +96,6 @@ export default async function NotesChapterPage({
     .eq('ncert_id', chapter.id)
     .order('order_index', { ascending: true })
 
-  // ⚠️ UPDATED: Multiple videos fetch (featured first, then order)
   const { data: videos } = await supabase
     .from('chapter_videos')
     .select(
@@ -101,18 +107,27 @@ export default async function NotesChapterPage({
     .order('is_featured', { ascending: false })
     .order('order_index', { ascending: true })
 
-  let isLoggedIn = false
-  try {
-    const session = await getServerSession()
-    isLoggedIn = !!session?.user && isUserConfirmed(session.user)
-  } catch {
-    isLoggedIn = false
+  // Session + bookmark check
+  const session = await getServerSession()
+  const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
+
+  let isBookmarked = false
+  if (isLoggedIn && session?.user) {
+    const supabaseAuth = createServerClientWithCookies()
+    const { data: bookmark } = await supabaseAuth
+      .from('bookmarks')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .eq('ncert_id', chapter.id)
+      .maybeSingle()
+    if (bookmark) isBookmarked = true
   }
 
   const pdfUrl =
     chapter.pdf_url || getPdfUrl(chapter.book_code, classNum, chapterNum)
 
   const hasNotes = !!notes && notes.length > 0
+  const canonicalUrl = `${SITE_URL}/notes/${params.class}/${params.subject}/${params.chapter}`
 
   return (
     <div className="space-y-6">
@@ -123,10 +138,7 @@ export default async function NotesChapterPage({
       />
 
       <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-        <Link
-          href="/"
-          className="hover:text-indigo-600 flex items-center gap-1"
-        >
+        <Link href="/" className="hover:text-indigo-600 flex items-center gap-1">
           <Home className="w-3.5 h-3.5" /> Home
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
@@ -170,8 +182,14 @@ export default async function NotesChapterPage({
         </div>
       </header>
 
-      {pdfUrl && (
-        <div className="flex justify-end">
+      {/* Action Row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <BookmarkButton
+          chapterId={chapter.id}
+          initialBookmarked={isBookmarked}
+        />
+        <ProgressButton chapterId={chapter.id} />
+        {pdfUrl && (
           <a
             href={pdfUrl}
             target="_blank"
@@ -180,10 +198,14 @@ export default async function NotesChapterPage({
           >
             <Download className="w-4 h-4" /> Download PDF
           </a>
-        </div>
-      )}
+        )}
+        <ShareButton
+          title={`Class ${classNum} ${subjectName} Chapter ${chapterNum}`}
+          url={canonicalUrl}
+        />
+      </div>
 
-      {/* ⚠️ UPDATED: Multiple videos */}
+      {/* Videos */}
       <VideoSection
         chapterId={chapter.id}
         chapterTitle={chapter.chapter_title}
@@ -192,6 +214,7 @@ export default async function NotesChapterPage({
         isLoggedIn={isLoggedIn}
       />
 
+      {/* Notes or coming-soon */}
       {hasNotes ? (
         <div className="space-y-6">
           <div className="flex items-center gap-2 text-lg font-semibold">
@@ -223,10 +246,7 @@ export default async function NotesChapterPage({
                   </span>
                 )}
               </div>
-              <div
-                className="prose prose-lg dark:prose-invert max-w-none break-words"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.content_html) }}
-              />
+              <NotesContent html={note.content_html} />
             </div>
           ))}
         </div>
@@ -241,6 +261,9 @@ export default async function NotesChapterPage({
           language={lang}
         />
       )}
+
+      {/* Comments */}
+      <CommentSection chapterId={chapter.id} />
     </div>
   )
 }

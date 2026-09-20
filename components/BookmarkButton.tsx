@@ -1,40 +1,92 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Bookmark } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
+interface BookmarkButtonProps {
+  chapterId: number
+  initialBookmarked?: boolean
+}
+
 export function BookmarkButton({
   chapterId,
-  initialBookmarked,
-}: {
-  chapterId: number
-  initialBookmarked: boolean
-}) {
+  initialBookmarked = false,
+}: BookmarkButtonProps) {
   const [bookmarked, setBookmarked] = useState(initialBookmarked)
   const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
-  const toggleBookmark = async () => {
-    setLoading(true)
+  // ✅ Mount flag for SSR safety
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+  // ✅ Client-side user detection
+  useEffect(() => {
+    let active = true
 
-    if (!session) {
-      toast.error('Please login to bookmark')
-      setLoading(false)
+    const fetchUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (active) setUserId(user?.id || null)
+    }
+
+    fetchUser()
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (active) setUserId(session?.user?.id || null)
+      }
+    )
+
+    return () => {
+      active = false
+      listener.subscription.unsubscribe()
+    }
+  }, [])
+
+  // ✅ Re-fetch bookmark state when user known (SSR + CSR consistency)
+  useEffect(() => {
+    if (!userId) {
+      setBookmarked(false)
       return
     }
 
+    let active = true
+    const checkBookmark = async () => {
+      const { data } = await supabase
+        .from('bookmarks')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('ncert_id', chapterId)
+        .maybeSingle()
+
+      if (active) setBookmarked(!!data)
+    }
+
+    checkBookmark()
+    return () => {
+      active = false
+    }
+  }, [userId, chapterId])
+
+  const toggleBookmark = async () => {
+    if (!userId) {
+      toast.error('Please login to bookmark')
+      return
+    }
+
+    setLoading(true)
+
     if (bookmarked) {
-      // Remove bookmark
-      // ✅ FIX: ncert_id
       const { error } = await supabase
         .from('bookmarks')
         .delete()
-        .eq('user_id', session.user.id)
+        .eq('user_id', userId)
         .eq('ncert_id', chapterId)
 
       if (error) {
@@ -44,10 +96,8 @@ export function BookmarkButton({
         toast.success('Bookmark removed')
       }
     } else {
-      // Add bookmark
-      // ✅ FIX: ncert_id
       const { error } = await supabase.from('bookmarks').insert({
-        user_id: session.user.id,
+        user_id: userId,
         ncert_id: chapterId,
       })
 
@@ -63,8 +113,19 @@ export function BookmarkButton({
         toast.success('Bookmarked!')
       }
     }
+
     setLoading(false)
   }
+
+  // ✅ SSR safety
+  if (!mounted) {
+    return (
+      <div className="h-10 w-28 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+    )
+  }
+
+  // ✅ Not logged in — hide
+  if (!userId) return null
 
   return (
     <button
@@ -77,9 +138,7 @@ export function BookmarkButton({
       }`}
       aria-label={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
     >
-      <Bookmark
-        className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`}
-      />
+      <Bookmark className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`} />
       {bookmarked ? 'Bookmarked' : 'Bookmark'}
     </button>
   )

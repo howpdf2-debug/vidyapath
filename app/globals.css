@@ -1,21 +1,9 @@
 /* app/globals.css */
+/* VidyaPath Design System 2.0 — FINAL (with PDF/Share/Print support) */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* =========================================================
-   VIDYAPATH DESIGN SYSTEM 2.0 — Round 6 FINAL
-   
-   Round 6 fixes:
-   • pulse-slow keyframe added (was missing → homepage hero static)
-   • iOS input zoom prevention (font-size: 16px on inputs)
-   • min-height: 100dvh (mobile browser support)
-   • text-wrap: pretty on paragraphs
-   • @supports fallback for backdrop-filter
-   • Hindi font-feature-settings
-   • Removed redundant mobile body font-size
-   ========================================================= */
 
 /* ═══════════════════════════════════════════════════════
    DESIGN TOKENS
@@ -23,19 +11,14 @@
 
 :root {
   --foreground: 15 23 42;
-
   --surface: 255 255 255;
   --surface-muted: 241 245 249;
-
   --border: 226 232 240;
   --border-strong: 203 213 225;
-
   --muted: 100 116 139;
   --muted-foreground: 71 85 105;
-
   --brand: 79 70 229;
   --brand-foreground: 255 255 255;
-
   --success: 22 163 74;
   --warning: 217 119 6;
   --danger: 220 38 38;
@@ -53,16 +36,12 @@
 
 .dark {
   --foreground: 248 250 252;
-
   --surface: 15 23 42;
   --surface-muted: 30 41 59;
-
   --border: 51 65 85;
   --border-strong: 71 85 105;
-
   --muted: 148 163 184;
   --muted-foreground: 203 213 225;
-
   --brand: 129 140 248;
   --brand-foreground: 15 23 42;
 
@@ -78,17 +57,16 @@
     font-size: 16px;
     min-width: 320px;
     scroll-behavior: smooth;
+    scrollbar-gutter: stable;
     text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
   }
 
   body {
     @apply bg-paper text-ink;
-    /* ✅ FIX: 100dvh with 100vh fallback (mobile dynamic viewport) */
     min-height: 100vh;
     min-height: 100dvh;
     margin: 0;
-
     background-image: radial-gradient(
       circle at 100% 0%,
       rgb(99 102 241 / 0.045),
@@ -96,23 +74,11 @@
     );
     background-repeat: no-repeat;
     background-position: top right;
-
-    font-family:
-      var(--font-inter),
-      Inter,
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      sans-serif;
-
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 1rem;
     line-height: 1.6;
     overflow-x: hidden;
-
-    transition:
-      background-color 200ms ease,
-      color 200ms ease;
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   .dark body {
@@ -124,32 +90,15 @@
     );
   }
 
-  /* Headings — Hindi-first with Inter fallback */
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family:
-      var(--font-hind),
-      "Hind",
-      "Noto Sans Devanagari",
-      var(--font-inter),
-      "Inter",
-      system-ui,
-      sans-serif;
-
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-hind), "Hind", "Noto Sans Devanagari", var(--font-inter), "Inter", system-ui, sans-serif;
     font-weight: 700;
     line-height: 1.15;
     letter-spacing: -0.015em;
     text-wrap: balance;
-
-    /* ✅ FIX: Better Devanagari glyph rendering */
     font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   }
 
-  /* ✅ FIX: Paragraphs use text-wrap: pretty for cleaner line breaks */
   p {
     overflow-wrap: normal;
     word-break: normal;
@@ -163,27 +112,20 @@
     hyphens: none;
   }
 
-  img,
-  svg,
-  video {
+  img, svg, video {
     display: block;
     max-width: 100%;
+    height: auto;
   }
 
-  button,
-  input,
-  textarea,
-  select {
+  button, input, textarea, select {
     font: inherit;
   }
 
-  button,
-  a,
-  [role="button"] {
+  button, a, [role="button"] {
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* WCAG AA focus ring — light mode (4.6:1 on white) */
   button:focus-visible,
   a:focus-visible,
   input:focus-visible,
@@ -194,7 +136,6 @@
     outline-offset: 2px;
   }
 
-  /* WCAG AA focus ring — dark mode (~11:1 on ink) */
   .dark button:focus-visible,
   .dark a:focus-visible,
   .dark input:focus-visible,
@@ -208,6 +149,18 @@
     background: rgb(99 102 241 / 0.18);
     color: rgb(var(--foreground));
   }
+
+  ::placeholder {
+    color: rgb(100 116 139 / 0.75);
+  }
+  .dark ::placeholder {
+    color: rgb(148 163 184 / 0.75);
+  }
+
+  pre, code {
+    overflow-x: auto;
+    max-width: 100%;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -216,13 +169,7 @@
 
 @layer components {
   .font-heading {
-    font-family:
-      var(--font-hind),
-      "Hind",
-      "Noto Sans Devanagari",
-      var(--font-inter),
-      "Inter",
-      sans-serif;
+    font-family: var(--font-hind), "Hind", "Noto Sans Devanagari", var(--font-inter), "Inter", sans-serif;
   }
 
   .break-safe {
@@ -231,19 +178,12 @@
     hyphens: none;
   }
 
-  .safe-top {
-    padding-top: max(0.75rem, env(safe-area-inset-top));
-  }
-
-  .safe-bottom {
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-  }
-
+  .safe-top { padding-top: max(0.75rem, env(safe-area-inset-top)); }
+  .safe-bottom { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
   .safe-x {
     padding-left: max(1rem, env(safe-area-inset-left));
     padding-right: max(1rem, env(safe-area-inset-right));
   }
-
   .safe-area {
     padding-top: max(0.75rem, env(safe-area-inset-top));
     padding-right: max(1rem, env(safe-area-inset-right));
@@ -258,7 +198,6 @@
     align-items: center;
     justify-content: center;
   }
-
   .tap-target-icon {
     width: 2.75rem;
     height: 2.75rem;
@@ -281,19 +220,15 @@
     background: rgb(var(--surface));
     border: 1px solid rgb(var(--border));
     border-radius: var(--radius-xl);
-    box-shadow:
-      0 1px 2px rgb(15 23 42 / 0.04),
-      0 4px 16px rgb(15 23 42 / 0.06);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
   }
 
-  /* ✅ FIX: @supports fallback for backdrop-filter */
   .surface-glass {
     background: rgb(var(--surface) / 0.96);
     border: 1px solid rgb(var(--border) / 0.8);
   }
 
-  @supports (backdrop-filter: blur(10px)) or
-    (-webkit-backdrop-filter: blur(10px)) {
+  @supports (backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px)) {
     .surface-glass {
       background: rgb(var(--surface) / 0.88);
       backdrop-filter: blur(10px);
@@ -302,39 +237,27 @@
   }
 
   .interactive {
-    transition:
-      transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
-      border-color 180ms ease,
-      background-color 180ms ease;
+    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 180ms ease,
+                background-color 180ms ease;
   }
-
-  .interactive:hover {
-    transform: translateY(-2px);
-  }
-
-  .interactive:active {
-    transform: translateY(0);
-  }
+  .interactive:hover { transform: translateY(-2px); }
+  .interactive:active { transform: translateY(0); }
 
   .skeleton {
-    background: linear-gradient(
-      90deg,
+    background: linear-gradient(90deg,
       rgb(226 232 240 / 0.75) 25%,
       rgb(241 245 249 / 0.95) 50%,
-      rgb(226 232 240 / 0.75) 75%
-    );
+      rgb(226 232 240 / 0.75) 75%);
     background-size: 1000px 100%;
     animation: shimmer 2s linear infinite;
   }
-
   .dark .skeleton {
-    background: linear-gradient(
-      90deg,
+    background: linear-gradient(90deg,
       rgb(30 41 59 / 0.8) 25%,
       rgb(51 65 85 / 0.95) 50%,
-      rgb(30 41 59 / 0.8) 75%
-    );
+      rgb(30 41 59 / 0.8) 75%);
     background-size: 1000px 100%;
   }
 
@@ -343,53 +266,41 @@
     font-size: 1rem;
     line-height: 1.8;
   }
-
-  .prose-vidyapath p {
-    margin-top: 1rem;
-    margin-bottom: 1rem;
-    text-wrap: pretty;
-  }
-
+  .prose-vidyapath p { margin-top: 1rem; margin-bottom: 1rem; text-wrap: pretty; }
   .prose-vidyapath h2,
   .prose-vidyapath h3,
   .prose-vidyapath h4 {
-    font-family:
-      var(--font-hind),
-      "Hind",
-      "Noto Sans Devanagari",
-      var(--font-inter),
-      "Inter",
-      system-ui,
-      sans-serif;
+    font-family: var(--font-hind), "Hind", "Noto Sans Devanagari", var(--font-inter), "Inter", system-ui, sans-serif;
     color: rgb(var(--foreground));
   }
-
   .prose-vidyapath a {
     color: rgb(var(--brand));
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
+  .prose-vidyapath img { border-radius: var(--radius-xl); }
 
-  .prose-vidyapath img {
-    border-radius: var(--radius-xl);
+  .subject-surface { background: rgb(var(--subject-50)); border-color: rgb(var(--subject-100)); }
+  .subject-accent { color: rgb(var(--subject-600)); }
+  .subject-accent-bg { background: rgb(var(--subject-600)); }
+  .subject-border { border-color: rgb(var(--subject-100)); }
+
+  .card-hover {
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (hover: hover) {
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 40px -12px rgb(15 23 42 / 0.15);
+    }
   }
 
-  /* Subject theming base classes */
-  .subject-surface {
-    background: rgb(var(--subject-50));
-    border-color: rgb(var(--subject-100));
+  .modal-backdrop {
+    animation: fadeIn 0.2s ease-out;
   }
-
-  .subject-accent {
-    color: rgb(var(--subject-600));
-  }
-
-  .subject-accent-bg {
-    background: rgb(var(--subject-600));
-  }
-
-  .subject-border {
-    border-color: rgb(var(--subject-100));
+  .modal-sheet {
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -397,150 +308,23 @@
    SUBJECT THEME VARIABLES
    ═══════════════════════════════════════════════════════ */
 
-.subject-math {
-  --subject-50: 239 246 255;
-  --subject-100: 219 234 254;
-  --subject-500: 59 130 246;
-  --subject-600: 37 99 235;
-  --subject-700: 29 78 216;
-  --subject-900: 30 58 138;
-}
+.subject-math { --subject-50: 239 246 255; --subject-100: 219 234 254; --subject-500: 59 130 246; --subject-600: 37 99 235; --subject-700: 29 78 216; --subject-900: 30 58 138; }
+.subject-science { --subject-50: 236 253 245; --subject-100: 209 250 229; --subject-500: 16 185 129; --subject-600: 5 150 105; --subject-700: 4 120 87; --subject-900: 6 78 59; }
+.subject-physics { --subject-50: 245 243 255; --subject-100: 237 233 254; --subject-500: 139 92 246; --subject-600: 124 58 237; --subject-700: 109 40 217; --subject-900: 76 29 149; }
+.subject-chemistry { --subject-50: 255 247 237; --subject-100: 255 237 213; --subject-500: 249 115 22; --subject-600: 234 88 12; --subject-700: 194 65 12; --subject-900: 124 45 18; }
+.subject-biology { --subject-50: 240 253 244; --subject-100: 220 252 231; --subject-500: 34 197 94; --subject-600: 22 163 74; --subject-700: 21 128 61; --subject-900: 20 83 45; }
+.subject-english { --subject-50: 253 244 255; --subject-100: 250 232 255; --subject-500: 217 70 239; --subject-600: 192 38 211; --subject-700: 162 28 175; --subject-900: 112 26 117; }
+.subject-hindi { --subject-50: 255 247 237; --subject-100: 255 237 213; --subject-500: 245 158 11; --subject-600: 217 119 6; --subject-700: 180 83 9; --subject-900: 120 53 15; }
+.subject-general { --subject-50: 238 242 255; --subject-100: 224 231 255; --subject-500: 99 102 241; --subject-600: 79 70 229; --subject-700: 67 56 202; --subject-900: 49 46 129; }
 
-.subject-science {
-  --subject-50: 236 253 245;
-  --subject-100: 209 250 229;
-  --subject-500: 16 185 129;
-  --subject-600: 5 150 105;
-  --subject-700: 4 120 87;
-  --subject-900: 6 78 59;
-}
-
-.subject-physics {
-  --subject-50: 245 243 255;
-  --subject-100: 237 233 254;
-  --subject-500: 139 92 246;
-  --subject-600: 124 58 237;
-  --subject-700: 109 40 217;
-  --subject-900: 76 29 149;
-}
-
-.subject-chemistry {
-  --subject-50: 255 247 237;
-  --subject-100: 255 237 213;
-  --subject-500: 249 115 22;
-  --subject-600: 234 88 12;
-  --subject-700: 194 65 12;
-  --subject-900: 124 45 18;
-}
-
-.subject-biology {
-  --subject-50: 240 253 244;
-  --subject-100: 220 252 231;
-  --subject-500: 34 197 94;
-  --subject-600: 22 163 74;
-  --subject-700: 21 128 61;
-  --subject-900: 20 83 45;
-}
-
-.subject-english {
-  --subject-50: 253 244 255;
-  --subject-100: 250 232 255;
-  --subject-500: 217 70 239;
-  --subject-600: 192 38 211;
-  --subject-700: 162 28 175;
-  --subject-900: 112 26 117;
-}
-
-.subject-hindi {
-  --subject-50: 255 247 237;
-  --subject-100: 255 237 213;
-  --subject-500: 245 158 11;
-  --subject-600: 217 119 6;
-  --subject-700: 180 83 9;
-  --subject-900: 120 53 15;
-}
-
-.subject-general {
-  --subject-50: 238 242 255;
-  --subject-100: 224 231 255;
-  --subject-500: 99 102 241;
-  --subject-600: 79 70 229;
-  --subject-700: 67 56 202;
-  --subject-900: 49 46 129;
-}
-
-/* Dark mode subject variants */
-.dark .subject-math {
-  --subject-50: 30 58 138;
-  --subject-100: 30 64 175;
-  --subject-500: 96 165 250;
-  --subject-600: 96 165 250;
-  --subject-700: 147 197 253;
-  --subject-900: 191 219 254;
-}
-
-.dark .subject-science {
-  --subject-50: 6 78 59;
-  --subject-100: 4 120 87;
-  --subject-500: 52 211 153;
-  --subject-600: 52 211 153;
-  --subject-700: 110 231 183;
-  --subject-900: 167 243 208;
-}
-
-.dark .subject-physics {
-  --subject-50: 76 29 149;
-  --subject-100: 91 33 182;
-  --subject-500: 167 139 250;
-  --subject-600: 167 139 250;
-  --subject-700: 196 181 253;
-  --subject-900: 221 214 254;
-}
-
-.dark .subject-chemistry {
-  --subject-50: 124 45 18;
-  --subject-100: 154 52 18;
-  --subject-500: 251 146 60;
-  --subject-600: 251 146 60;
-  --subject-700: 253 186 116;
-  --subject-900: 254 215 170;
-}
-
-.dark .subject-biology {
-  --subject-50: 20 83 45;
-  --subject-100: 22 101 52;
-  --subject-500: 74 222 128;
-  --subject-600: 74 222 128;
-  --subject-700: 134 239 172;
-  --subject-900: 187 247 208;
-}
-
-.dark .subject-english {
-  --subject-50: 112 26 117;
-  --subject-100: 134 25 143;
-  --subject-500: 232 121 249;
-  --subject-600: 232 121 249;
-  --subject-700: 240 171 252;
-  --subject-900: 245 208 254;
-}
-
-.dark .subject-hindi {
-  --subject-50: 120 53 15;
-  --subject-100: 146 64 14;
-  --subject-500: 251 191 36;
-  --subject-600: 251 191 36;
-  --subject-700: 252 211 77;
-  --subject-900: 253 230 138;
-}
-
-.dark .subject-general {
-  --subject-50: 49 46 129;
-  --subject-100: 55 48 163;
-  --subject-500: 129 140 248;
-  --subject-600: 129 140 248;
-  --subject-700: 165 180 252;
-  --subject-900: 199 210 254;
-}
+.dark .subject-math { --subject-50: 30 58 138; --subject-100: 30 64 175; --subject-500: 96 165 250; --subject-600: 96 165 250; --subject-700: 147 197 253; --subject-900: 191 219 254; }
+.dark .subject-science { --subject-50: 6 78 59; --subject-100: 4 120 87; --subject-500: 52 211 153; --subject-600: 52 211 153; --subject-700: 110 231 183; --subject-900: 167 243 208; }
+.dark .subject-physics { --subject-50: 76 29 149; --subject-100: 91 33 182; --subject-500: 167 139 250; --subject-600: 167 139 250; --subject-700: 196 181 253; --subject-900: 221 214 254; }
+.dark .subject-chemistry { --subject-50: 124 45 18; --subject-100: 154 52 18; --subject-500: 251 146 60; --subject-600: 251 146 60; --subject-700: 253 186 116; --subject-900: 254 215 170; }
+.dark .subject-biology { --subject-50: 20 83 45; --subject-100: 22 101 52; --subject-500: 74 222 128; --subject-600: 74 222 128; --subject-700: 134 239 172; --subject-900: 187 247 208; }
+.dark .subject-english { --subject-50: 112 26 117; --subject-100: 134 25 143; --subject-500: 232 121 249; --subject-600: 232 121 249; --subject-700: 240 171 252; --subject-900: 245 208 254; }
+.dark .subject-hindi { --subject-50: 120 53 15; --subject-100: 146 64 14; --subject-500: 251 191 36; --subject-600: 251 191 36; --subject-700: 252 211 77; --subject-900: 253 230 138; }
+.dark .subject-general { --subject-50: 49 46 129; --subject-100: 55 48 163; --subject-500: 129 140 248; --subject-600: 129 140 248; --subject-700: 165 180 252; --subject-900: 199 210 254; }
 
 /* ═══════════════════════════════════════════════════════
    UTILITIES LAYER
@@ -551,20 +335,11 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
 
-  .scrollbar-thin {
-    scrollbar-width: thin;
-  }
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
+  .scrollbar-thin { scrollbar-width: thin; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: rgb(148 163 184 / 0.45);
     border-radius: 999px;
@@ -577,9 +352,7 @@
     scroll-snap-type: x proximity;
     scrollbar-width: none;
   }
-  .horizontal-scroll::-webkit-scrollbar {
-    display: none;
-  }
+  .horizontal-scroll::-webkit-scrollbar { display: none; }
   .horizontal-scroll > * {
     scroll-snap-align: start;
     flex: 0 0 auto;
@@ -590,60 +363,25 @@
     user-select: none;
   }
 
-  .touch-pan-x {
-    touch-action: pan-x;
-  }
-  .touch-pan-y {
-    touch-action: pan-y;
-  }
-  .touch-manipulation {
-    touch-action: manipulation;
-  }
+  .touch-pan-x { touch-action: pan-x; }
+  .touch-pan-y { touch-action: pan-y; }
+  .touch-manipulation { touch-action: manipulation; }
 
-  /* Backward-compat subject gradient utilities */
-  .bg-subject-math-soft {
-    background-image: linear-gradient(to bottom right, rgb(239 246 255), #ffffff);
-  }
-  .bg-subject-science-soft {
-    background-image: linear-gradient(to bottom right, rgb(236 253 245), #ffffff);
-  }
-  .bg-subject-physics-soft {
-    background-image: linear-gradient(to bottom right, rgb(245 243 255), #ffffff);
-  }
-  .bg-subject-chemistry-soft {
-    background-image: linear-gradient(to bottom right, rgb(255 247 237), #ffffff);
-  }
-  .bg-subject-biology-soft {
-    background-image: linear-gradient(to bottom right, rgb(240 253 244), #ffffff);
-  }
-  .bg-subject-english-soft {
-    background-image: linear-gradient(to bottom right, rgb(253 244 255), #ffffff);
-  }
-  .bg-subject-hindi-soft {
-    background-image: linear-gradient(to bottom right, rgb(255 247 237), #ffffff);
-  }
+  .bg-subject-math-soft { background-image: linear-gradient(to bottom right, rgb(239 246 255), #ffffff); }
+  .bg-subject-science-soft { background-image: linear-gradient(to bottom right, rgb(236 253 245), #ffffff); }
+  .bg-subject-physics-soft { background-image: linear-gradient(to bottom right, rgb(245 243 255), #ffffff); }
+  .bg-subject-chemistry-soft { background-image: linear-gradient(to bottom right, rgb(255 247 237), #ffffff); }
+  .bg-subject-biology-soft { background-image: linear-gradient(to bottom right, rgb(240 253 244), #ffffff); }
+  .bg-subject-english-soft { background-image: linear-gradient(to bottom right, rgb(253 244 255), #ffffff); }
+  .bg-subject-hindi-soft { background-image: linear-gradient(to bottom right, rgb(255 247 237), #ffffff); }
 
-  .dark .bg-subject-math-soft {
-    background-image: linear-gradient(to bottom right, rgb(30 58 138 / 0.15), rgb(15 23 42));
-  }
-  .dark .bg-subject-science-soft {
-    background-image: linear-gradient(to bottom right, rgb(6 78 59 / 0.15), rgb(15 23 42));
-  }
-  .dark .bg-subject-physics-soft {
-    background-image: linear-gradient(to bottom right, rgb(76 29 149 / 0.15), rgb(15 23 42));
-  }
-  .dark .bg-subject-chemistry-soft {
-    background-image: linear-gradient(to bottom right, rgb(124 45 18 / 0.15), rgb(15 23 42));
-  }
-  .dark .bg-subject-biology-soft {
-    background-image: linear-gradient(to bottom right, rgb(20 83 45 / 0.15), rgb(15 23 42));
-  }
-  .dark .bg-subject-english-soft {
-    background-image: linear-gradient(to bottom right, rgb(112 26 117 / 0.15), rgb(15 23 42));
-  }
-  .dark .bg-subject-hindi-soft {
-    background-image: linear-gradient(to bottom right, rgb(120 53 15 / 0.15), rgb(15 23 42));
-  }
+  .dark .bg-subject-math-soft { background-image: linear-gradient(to bottom right, rgb(30 58 138 / 0.15), rgb(15 23 42)); }
+  .dark .bg-subject-science-soft { background-image: linear-gradient(to bottom right, rgb(6 78 59 / 0.15), rgb(15 23 42)); }
+  .dark .bg-subject-physics-soft { background-image: linear-gradient(to bottom right, rgb(76 29 149 / 0.15), rgb(15 23 42)); }
+  .dark .bg-subject-chemistry-soft { background-image: linear-gradient(to bottom right, rgb(124 45 18 / 0.15), rgb(15 23 42)); }
+  .dark .bg-subject-biology-soft { background-image: linear-gradient(to bottom right, rgb(20 83 45 / 0.15), rgb(15 23 42)); }
+  .dark .bg-subject-english-soft { background-image: linear-gradient(to bottom right, rgb(112 26 117 / 0.15), rgb(15 23 42)); }
+  .dark .bg-subject-hindi-soft { background-image: linear-gradient(to bottom right, rgb(120 53 15 / 0.15), rgb(15 23 42)); }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -651,41 +389,241 @@
    ═══════════════════════════════════════════════════════ */
 
 @keyframes shimmer {
-  from {
-    background-position: -1000px 0;
-  }
-  to {
-    background-position: 1000px 0;
-  }
+  from { background-position: -1000px 0; }
+  to { background-position: 1000px 0; }
 }
 
-/* ✅ FIX: pulse-slow keyframe — for homepage hero floating blobs */
 @keyframes pulse-slow {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.1);
-  }
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
 }
 
-/* ✅ FIX: animate-pulse-slow class */
-.animate-pulse-slow {
-  animation: pulse-slow 8s ease-in-out infinite;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-pulse-slow { animation: pulse-slow 8s ease-in-out infinite; }
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
+.animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-spin-slow { animation: spin 2s linear infinite; }
+
+/* ═══════════════════════════════════════════════════════
+   HINDI TYPOGRAPHY
+   ═══════════════════════════════════════════════════════ */
+
+:lang(hi) h1, :lang(hi) h2, :lang(hi) h3, :lang(hi) h4, :lang(hi) h5, :lang(hi) h6,
+.lang-hi h1, .lang-hi h2, .lang-hi h3, .lang-hi h4, .lang-hi h5, .lang-hi h6 {
+  line-height: 1.35;
+  padding-top: 0.15em;
+  padding-bottom: 0.1em;
+}
+
+:lang(hi) p, :lang(hi) li,
+.lang-hi p, .lang-hi li {
+  line-height: 1.75;
 }
 
 /* ═══════════════════════════════════════════════════════
-   RESPONSIVE
+   ACCESSIBILITY HELPERS
    ═══════════════════════════════════════════════════════ */
 
-/* ✅ FIX: iOS input zoom prevention (only on mobile) */
+.text-warning-on-tint { color: #78350F; }
+.dark .text-warning-on-tint { color: #FCD34D; }
+
+/* ═══════════════════════════════════════════════════════
+   NOTE CONTENT — Beautiful typography (mobile-first)
+   ═══════════════════════════════════════════════════════ */
+
+.note-content {
+  color: inherit;
+  line-height: 1.7;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-size: 0.9375rem;
+}
+
+@media (min-width: 480px) {
+  .note-content { font-size: 1rem; }
+}
+@media (min-width: 768px) {
+  .note-content { font-size: 1.0625rem; line-height: 1.75; }
+}
+
+.note-content h1 { font-size: 1.5rem; font-weight: 800; margin: 1.5rem 0 0.75rem; line-height: 1.25; letter-spacing: -0.02em; }
+.note-content h2 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 0.75rem; line-height: 1.3; letter-spacing: -0.01em; }
+.note-content h3 { font-size: 1.125rem; font-weight: 600; margin: 1.25rem 0 0.5rem; line-height: 1.4; }
+
+@media (min-width: 640px) {
+  .note-content h1 { font-size: 1.875rem; }
+  .note-content h2 { font-size: 1.5rem; }
+  .note-content h3 { font-size: 1.25rem; }
+}
+
+.note-content p { margin: 0.75rem 0; }
+.note-content ul,
+.note-content ol { margin: 0.75rem 0; padding-left: 1.25rem; }
+@media (min-width: 640px) {
+  .note-content ul,
+  .note-content ol { padding-left: 1.5rem; }
+}
+.note-content li { margin: 0.35rem 0; }
+.note-content strong { font-weight: 700; }
+.note-content em { font-style: italic; }
+
+.note-content blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding: 0.5rem 0 0.5rem 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #6b7280;
+  background: #f9fafb;
+  border-radius: 0 8px 8px 0;
+}
+.dark .note-content blockquote {
+  border-color: #374151;
+  background: #1f2937;
+  color: #9ca3af;
+}
+
+.note-content code {
+  background: #f3f4f6;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.875em;
+  word-break: break-word;
+}
+.dark .note-content code { background: #1f2937; color: #f3f4f6; }
+
+.note-content pre {
+  background: #f6f8fa;
+  padding: 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 1rem 0;
+  font-size: 0.8125rem;
+  -webkit-overflow-scrolling: touch;
+}
+@media (min-width: 640px) {
+  .note-content pre { padding: 1rem; font-size: 0.875rem; }
+}
+.dark .note-content pre { background: #1a1a1a; }
+
+.note-content a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+.dark .note-content a { color: #60a5fa; }
+
+/* ═══════════════════════════════════════════════════════
+   SVG DIAGRAMS — ✅ FIXED (no fill override)
+   ═══════════════════════════════════════════════════════ */
+
+.note-content svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 150px;
+  margin: 1.5rem auto;
+  overflow: visible;
+}
+
+.note-content svg text {
+  font-family: inherit;
+  font-size: 13px;
+}
+
+@media (min-width: 640px) {
+  .note-content svg text { font-size: 14px; }
+}
+
+/* 
+   ⚠️ IMPORTANT: Do NOT add fill/stroke overrides here!
+   SVG elements have fill="..." and stroke="..." as HTML attributes.
+   Any CSS rule with `fill: currentColor` will OVERRIDE those attributes
+   and break colored diagrams in dark mode.
+   
+   Let the inline HTML attributes work — they are preserved by sanitizeHtml().
+*/
+
+/* Tables */
+.note-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.8125rem;
+  min-width: 100%;
+}
+@media (min-width: 640px) {
+  .note-content table { font-size: 0.875rem; }
+}
+.note-content th,
+.note-content td {
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+@media (min-width: 640px) {
+  .note-content th,
+  .note-content td { padding: 8px 12px; }
+}
+.note-content th {
+  background: #f9fafb;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.dark .note-content th,
+.dark .note-content td { border-color: #374151; }
+.dark .note-content th { background: #1f2937; }
+
+.note-content .table-wrap,
+.note-content > table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (min-width: 640px) {
+  .note-content .table-wrap,
+  .note-content > table { display: table; }
+}
+
+.note-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — mobile tweaks
+   ═══════════════════════════════════════════════════════ */
+
 @media (max-width: 767px) {
   input,
   select,
-  textarea {
+  textarea,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"] {
     font-size: 16px !important;
   }
 
@@ -699,152 +637,7 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-}
 
-@media (min-width: 768px) {
-  .prose-vidyapath {
-    font-size: 1.0625rem;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════
-   REDUCED MOTION
-   ═══════════════════════════════════════════════════════ */
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
-
-  .interactive:hover {
-    transform: none;
-  }
-
-  /* ✅ FIX: Explicitly disable pulse-slow for reduced-motion users */
-  .animate-pulse-slow {
-    animation: none;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════
-   PRINT
-   ═══════════════════════════════════════════════════════ */
-
-@media print {
-  body {
-    background: white;
-    color: black;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-
-  .surface-card,
-  .surface {
-    box-shadow: none;
-  }
-
-  .animate-pulse-slow {
-    animation: none;
-  }
-}
-/* ═══════════════════════════════════════════════════════
-   ROUND 7 — Hindi matra, WCAG, iOS zoom, motion
-   ═══════════════════════════════════════════════════════ */
-
-/* ✅ FIX #23: Hindi matra crop — extra line-height for Devanagari */
-:lang(hi) h1,
-:lang(hi) h2,
-:lang(hi) h3,
-:lang(hi) h4,
-:lang(hi) h5,
-:lang(hi) h6,
-.lang-hi h1,
-.lang-hi h2,
-.lang-hi h3,
-.lang-hi h4,
-.lang-hi h5,
-.lang-hi h6 {
-  line-height: 1.35;
-  padding-top: 0.15em;
-  padding-bottom: 0.1em;
-}
-
-/* Hindi body text — slightly more line-height */
-:lang(hi) p,
-:lang(hi) li,
-.lang-hi p,
-.lang-hi li {
-  line-height: 1.75;
-}
-
-/* ✅ FIX #56: WCAG AA — placeholder text contrast */
-::placeholder {
-  color: rgb(100 116 139 / 0.75); /* slate-500 at 75% */
-}
-.dark ::placeholder {
-  color: rgb(148 163 184 / 0.75); /* slate-400 at 75% */
-}
-
-/* ✅ FIX #56: Warning/success text on tinted bg — ensure 4.5:1 */
-.text-warning-on-tint {
-  color: #78350F; /* amber-900 */
-}
-.dark .text-warning-on-tint {
-  color: #FCD34D; /* amber-300 */
-}
-
-/* ✅ FIX #73: iOS input zoom prevention — ALL inputs */
-@media screen and (max-width: 767px) {
-  input,
-  select,
-  textarea,
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="search"],
-  input[type="tel"],
-  input[type="url"],
-  input[type="number"] {
-    font-size: 16px !important;
-  }
-}
-
-/* ✅ FIX #83: Address bar hide/show — prevent CLS */
-html {
-  scrollbar-gutter: stable;
-}
-
-/* ✅ FIX #92: Disable ALL motion including non-hero animations */
-@media (prefers-reduced-motion: reduce) {
-  .animate-pulse-slow,
-  .animate-fade-in,
-  .animate-slide-in-top,
-  .animate-float,
-  .animate-fade-in-up {
-    animation: none !important;
-  }
-
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-  }
-}
-
-/* ✅ FIX #102: Disable backdrop-blur on all mobile */
-@media (max-width: 767px) {
   [class*="backdrop-blur"],
   .backdrop-blur-sm,
   .backdrop-blur-md,
@@ -855,53 +648,156 @@ html {
   }
 }
 
-/* ✅ FIX #53: Hover shine effect — GPU friendly */
+@media (min-width: 768px) {
+  .prose-vidyapath {
+    font-size: 1.0625rem;
+  }
+}
+
+@media (max-width: 320px) {
+  html { font-size: 14px; }
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.25rem !important; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .interactive:hover { transform: none; }
+  .card-hover:hover { transform: none; }
+
+  .animate-pulse-slow,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-spin-slow {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   PRINT STYLES
+   ═══════════════════════════════════════════════════════ */
+
+@media print {
+  header, nav, footer, aside,
+  .no-print,
+  .note-action-bar,
+  .surface-card > .no-print,
+  button:not(.print-keep),
+  .sticky,
+  [data-print-hide="true"] {
+    display: none !important;
+  }
+
+  [role="dialog"].print-visible {
+    display: flex !important;
+  }
+
+  @page {
+    margin: 15mm;
+    size: A4;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  .note-content {
+    font-size: 11pt;
+    line-height: 1.5;
+    color: black;
+    max-width: 100%;
+  }
+
+  .note-content h1 { font-size: 20pt; page-break-after: avoid; }
+  .note-content h2 { font-size: 16pt; page-break-after: avoid; margin-top: 14pt; }
+  .note-content h3 { font-size: 14pt; page-break-after: avoid; margin-top: 10pt; }
+  .note-content h4 { font-size: 12pt; page-break-after: avoid; }
+
+  .note-content svg {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+    display: block;
+    margin: 10pt auto;
+  }
+
+  .note-content table {
+    border-collapse: collapse;
+    width: 100%;
+    page-break-inside: avoid;
+    display: table !important;
+  }
+
+  .note-content th,
+  .note-content td {
+    border: 1px solid #333;
+    padding: 4pt 6pt;
+  }
+
+  .note-content a {
+    color: black;
+    text-decoration: underline;
+  }
+
+  .note-content a[href^="http"]:after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #666;
+    word-break: break-all;
+  }
+
+  .note-content pre,
+  .note-content blockquote,
+  .note-content img {
+    page-break-inside: avoid;
+  }
+
+  .note-content p,
+  .note-content li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .surface-card,
+  .surface {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   TOUCH-FRIENDLY
+   ═══════════════════════════════════════════════════════ */
+
+@media (hover: none) and (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @media (hover: none) {
   .group:hover .group-hover\:translate-x-full {
     transform: none !important;
   }
-}
-
-/* ✅ FIX #57: Focus-visible — high contrast in both themes */
-:focus-visible {
-  outline: 3px solid #4F46E5;
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-.dark :focus-visible {
-  outline-color: #A5B4FC;
-}
-
-/* ✅ FIX #45: Card hover — single change (transform only) */
-.card-hover {
-  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-@media (hover: hover) {
-  .card-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 20px 40px -12px rgb(15 23 42 / 0.15);
-  }
-}
-
-/* ✅ FIX #77: Prevent horizontal scroll globally */
-body {
-  overflow-x: hidden;
-}
-pre, code {
-  overflow-x: auto;
-  max-width: 100%;
-}
-img, video, svg {
-  max-width: 100%;
-  height: auto;
-}
-
-/* ✅ FIX #80: Very small screens (280px Galaxy Fold) */
-@media (max-width: 320px) {
-  html {
-    font-size: 14px;
-  }
-  h1 { font-size: 1.5rem !important; }
-  h2 { font-size: 1.25rem !important; }
 }

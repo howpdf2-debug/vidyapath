@@ -1,9 +1,9 @@
-import { cookies, headers } from 'next/headers'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { createServerClientWithCookies } from '@/lib/supabase-server'
 
-// ═══════════════════════════════════════════════════════
-// ADMIN LAYOUT — Cookie-Based Auth (custom password system)
-// ═══════════════════════════════════════════════════════
+export const dynamic = 'force-dynamic'
+
 export default async function AdminLayout({
   children,
 }: {
@@ -12,24 +12,36 @@ export default async function AdminLayout({
   const headersList = headers()
   const pathname = headersList.get('x-pathname') || ''
 
-  // ✅ Login page bypasses auth
+  // Login page bypass
   if (pathname === '/admin/login') {
     return <>{children}</>
   }
 
-  // ✅ Check admin_session cookie
   try {
-    const cookieStore = cookies()
-    const session = cookieStore.get('admin_session')?.value
+    const supabase = createServerClientWithCookies()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (!user) {
       const nextParam = pathname
         ? `?next=${encodeURIComponent(pathname)}`
         : ''
       redirect(`/admin/login${nextParam}`)
     }
+
+    // Check admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      redirect('/admin/login?error=not_admin')
+    }
   } catch (err) {
-    console.error('[admin layout] Cookie check failed:', err)
+    console.error('[admin layout] Auth check failed:', err)
     redirect('/admin/login?error=session_error')
   }
 

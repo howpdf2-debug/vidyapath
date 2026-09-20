@@ -12,8 +12,7 @@ interface Comment {
   ncert_id: number
   comment: string
   created_at: string
-  author_name?: string | null  // ← null allow karo
-  author_email?: string | null // ← null allow karo
+  author_name: string | null
 }
 
 export function CommentSection({ chapterId }: { chapterId: number }) {
@@ -22,19 +21,19 @@ export function CommentSection({ chapterId }: { chapterId: number }) {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    // Get current user
+    setMounted(true)
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
-    // Fetch comments
     fetchComments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterId])
 
   const fetchComments = async () => {
     setFetching(true)
     try {
-      // ✅ FIX 1: ncert_id instead of chapter_id
-      // ✅ FIX 2: No join with users — fetch comments only
+      // ✅ Fetch comments
       const { data: rawComments, error } = await supabase
         .from('chapter_comments')
         .select('id, user_id, ncert_id, comment, created_at')
@@ -55,18 +54,25 @@ export function CommentSection({ chapterId }: { chapterId: number }) {
         return
       }
 
-      // ✅ FIX 3: Fetch author info separately (no join needed)
-      // Using a server-side or simpler approach — use user_metadata from comment
-      // For now, just show user IDs shortened
+      // ✅ Fetch author names from public_profiles view (safe fields only)
+      const userIds = [...new Set(rawComments.map((c: any) => c.user_id))]
+
+      const { data: profiles } = await supabase
+        .from('public_profiles')
+        .select('id, full_name')
+        .in('id', userIds)
+
+      const profileMap = new Map(
+        (profiles || []).map((p: any) => [p.id, p.full_name])
+      )
+
       const commentsWithAuthors: Comment[] = rawComments.map((c: any) => ({
         id: c.id,
         user_id: c.user_id,
         ncert_id: c.ncert_id,
         comment: c.comment,
         created_at: c.created_at,
-        // Display fallback — will be replaced by real user data later
-        author_name: null,
-        author_email: null,
+        author_name: profileMap.get(c.user_id) || null,
       }))
 
       setComments(commentsWithAuthors)
@@ -88,7 +94,6 @@ export function CommentSection({ chapterId }: { chapterId: number }) {
 
     setLoading(true)
 
-    // ✅ FIX: ncert_id instead of chapter_id
     const { error } = await supabase.from('chapter_comments').insert({
       ncert_id: chapterId,
       user_id: user.id,
@@ -119,17 +124,25 @@ export function CommentSection({ chapterId }: { chapterId: number }) {
   }
 
   const getDisplayName = (c: Comment): string => {
+    // 1. Own comment — use current user's metadata
     if (user && c.user_id === user.id) {
-      // Current user's own comment
       return (
         user.user_metadata?.full_name ||
         user.email?.split('@')[0] ||
         'You'
       )
     }
-    // Other users — show shortened ID
-    return `User ${c.user_id.slice(0, 6)}`
+    // 2. Profile name from view
+    if (c.author_name) return c.author_name
+    // 3. Fallback
+    return 'Student'
   }
+
+  const getInitial = (c: Comment): string => {
+    return getDisplayName(c).charAt(0).toUpperCase() || 'S'
+  }
+
+  if (!mounted) return null
 
   return (
     <section className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-6">
@@ -145,7 +158,7 @@ export function CommentSection({ chapterId }: { chapterId: number }) {
         )}
       </div>
 
-      {/* Comment Form */}
+      {/* Form */}
       {user ? (
         <form onSubmit={handleSubmit} className="mb-6">
           <div className="flex gap-2">
@@ -184,7 +197,7 @@ export function CommentSection({ chapterId }: { chapterId: number }) {
         </div>
       )}
 
-      {/* Comments List */}
+      {/* List */}
       {fetching ? (
         <div className="text-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto" />
@@ -209,7 +222,7 @@ export function CommentSection({ chapterId }: { chapterId: number }) {
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-                    {getDisplayName(c).charAt(0).toUpperCase()}
+                    {getInitial(c)}
                   </div>
                   <span className="font-medium text-sm text-gray-900 dark:text-white">
                     {getDisplayName(c)}

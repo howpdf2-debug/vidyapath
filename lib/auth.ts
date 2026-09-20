@@ -1,55 +1,9 @@
-import { createServerClient } from './supabase'
-
-// ==================== SESSION ====================
-
-/**
- * Get server-side session.
- * Note: This uses anon key — for full SSR support, use @supabase/ssr with cookies.
- * For most cases, getUser() is more reliable than getSession() on server.
- */
-export async function getServerSession() {
-  try {
-    const supabase = createServerClient()
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession()
-
-    if (error) {
-      console.warn('[auth] getServerSession error:', error.message)
-      return null
-    }
-
-    return session
-  } catch (err) {
-    console.error('[auth] getServerSession failed:', err)
-    return null
-  }
-}
-
-/**
- * Get current user (server-side).
- * More reliable than getSession() — validates JWT with Supabase.
- */
-export async function getServerUser() {
-  try {
-    const supabase = createServerClient()
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser()
-
-    if (error) {
-      console.warn('[auth] getServerUser error:', error.message)
-      return null
-    }
-
-    return user
-  } catch (err) {
-    console.error('[auth] getServerUser failed:', err)
-    return null
-  }
-}
+// lib/auth.ts
+// ═══════════════════════════════════════════════════════
+// CLIENT-SAFE HELPERS ONLY
+// ⚠️ NO next/headers imports — safe for client components
+// For server-side session, use @/lib/auth-server
+// ═══════════════════════════════════════════════════════
 
 // ==================== VALIDATION ====================
 
@@ -64,14 +18,6 @@ export type PasswordValidationResult = {
   }
 }
 
-/**
- * Validate password strength.
- * Requirements:
- * - Minimum 8 characters
- * - At least 1 uppercase letter (A-Z)
- * - At least 1 lowercase letter (a-z)
- * - At least 1 number (0-9)
- */
 export function validatePasswordStrength(
   password: string
 ): PasswordValidationResult {
@@ -95,9 +41,6 @@ export function validatePasswordStrength(
   }
 }
 
-/**
- * Validate email format.
- */
 export function validateEmail(email: string): {
   valid: boolean
   error?: string
@@ -114,9 +57,6 @@ export function validateEmail(email: string): {
   return { valid: true }
 }
 
-/**
- * Validate full name.
- */
 export function validateName(name: string): {
   valid: boolean
   error?: string
@@ -124,21 +64,15 @@ export function validateName(name: string): {
   if (!name || name.trim().length === 0) {
     return { valid: false, error: 'Name is required' }
   }
-
   if (name.trim().length < 2) {
     return { valid: false, error: 'Name must be at least 2 characters' }
   }
-
   if (name.trim().length > 100) {
     return { valid: false, error: 'Name is too long' }
   }
-
   return { valid: true }
 }
 
-/**
- * Check if password and confirm match.
- */
 export function validatePasswordMatch(
   password: string,
   confirm: string
@@ -151,19 +85,12 @@ export function validatePasswordMatch(
 
 // ==================== HELPERS ====================
 
-/**
- * Detect if email is already registered.
- * Based on Supabase behavior: user with empty identities array = email exists.
- */
 export function isEmailAlreadyRegistered(user: any): boolean {
   if (!user) return false
   if (!user.identities) return false
   return Array.isArray(user.identities) && user.identities.length === 0
 }
 
-/**
- * Parse Supabase error message for friendly display.
- */
 export function parseAuthError(message: string): {
   type: 'email_exists' | 'weak_password' | 'rate_limit' | 'invalid_email' | 'unknown'
   friendlyMessage: string
@@ -207,27 +134,21 @@ export function parseAuthError(message: string): {
     friendlyMessage: message,
   }
 }
+
 // ==================== DISPLAY HELPERS ====================
 
-/**
- * Get user's display name (first name preferred).
- * Priority: first_name → full_name (first word) → email prefix (capitalized) → 'User'
- */
 export function getUserDisplayName(user: any): string {
   if (!user) return 'User'
 
-  // 1. Direct first_name field
   const firstName = user.user_metadata?.first_name?.trim()
   if (firstName) return firstName
 
-  // 2. First word from full_name
   const fullName = user.user_metadata?.full_name?.trim()
   if (fullName) {
     const parts = fullName.split(/\s+/)
     return parts[0] || fullName
   }
 
-  // 3. Fallback: email prefix (capitalized)
   const email = user.email || ''
   const prefix = email.split('@')[0]
   if (prefix) {
@@ -237,9 +158,6 @@ export function getUserDisplayName(user: any): string {
   return 'User'
 }
 
-/**
- * Get user's full name.
- */
 export function getUserFullName(user: any): string {
   if (!user) return 'User'
 
@@ -258,20 +176,12 @@ export function getUserFullName(user: any): string {
   return 'User'
 }
 
-/**
- * Get user's initial for avatar.
- */
 export function getUserInitial(user: any): string {
   if (!user) return 'U'
-
   const name = getUserDisplayName(user)
   return name.charAt(0).toUpperCase() || 'U'
 }
 
-/**
- * Check if user's email is confirmed.
- * Handles both Supabase field names.
- */
 export function isUserConfirmed(user: any): boolean {
   if (!user) return false
   return Boolean(user.email_confirmed_at || user.confirmed_at)

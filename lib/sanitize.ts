@@ -1,66 +1,74 @@
 // lib/sanitize.ts
-// Sanitizes HTML content before dangerouslySetInnerHTML
+// HTML Sanitizer — preserves formatting + inline SVG diagrams
 
-const ALLOWED_TAGS = new Set([
-  'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'ul', 'ol', 'li',
-  'blockquote', 'code', 'pre',
-  'a', 'img',
-  'table', 'thead', 'tbody', 'tr', 'th', 'td',
-  'span', 'div',
-  'sub', 'sup', 'hr',
-])
-
-const ALLOWED_ATTRS = new Set([
-  'href', 'title', 'target', 'rel',
-  'src', 'alt', 'width', 'height',
-  'class', 'style',
-])
-
-/**
- * Basic HTML sanitizer — strips scripts, iframes, event handlers
- * Use for admin-authored content where input is semi-trusted.
- * For untrusted input, use DOMPurify on the client instead.
- */
 export function sanitizeHtml(html: string): string {
   if (!html) return ''
 
-  // Remove script, iframe, object, embed, style tags entirely
   let clean = html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
-    .replace(/<embed\b[^>]*>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/<link\b[^>]*>/gi, '')
-    .replace(/<meta\b[^>]*>/gi, '')
 
-  // Remove event handlers (onclick, onerror, etc.)
-  clean = clean.replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-  clean = clean.replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-  clean = clean.replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+  // ─── 1. Remove dangerous tags WITH their content ───
+  const dangerousTags = [
+    'script',
+    'iframe',
+    'object',
+    'embed',
+    'style',
+    'link',
+    'meta',
+    'base',
+    'form',
+    'noscript',
+  ]
 
-  // Remove javascript: URLs
-  clean = clean.replace(/javascript:/gi, '')
+  for (const tag of dangerousTags) {
+    const pairedRegex = new RegExp(
+      `<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`,
+      'gi'
+    )
+    clean = clean.replace(pairedRegex, '')
 
-  // Remove data: URLs (except images)
-  clean = clean.replace(/data:(?!image\/)/gi, '')
+    const selfClosingRegex = new RegExp(`<${tag}\\b[^>]*\\/?>`, 'gi')
+    clean = clean.replace(selfClosingRegex, '')
+  }
+
+  // ─── 2. Remove event handlers ───
+  clean = clean.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '')
+  clean = clean.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '')
+  clean = clean.replace(/\s+on\w+\s*=\s*[^\s>]+/gi, '')
+
+  // ─── 3. Remove javascript: URLs ───
+  clean = clean.replace(
+    /(\s(?:href|src|xlink:href|action|formaction)\s*=\s*)(["'])\s*(?:java|vb|live)script\s*:[^"']*\2/gi,
+    '$1$2#$2'
+  )
+  clean = clean.replace(
+    /(\s(?:href|src|xlink:href|action|formaction)\s*=\s*)(?:java|vb|live)script\s*:[^\s>]*/gi,
+    '$1#'
+  )
+  clean = clean.replace(/(?:java|vb|live)script\s*:/gi, '')
+
+  // ─── 4. Remove unsafe data: URLs ───
+  clean = clean.replace(
+    /data:(?!image\/(?:png|jpe?g|gif|webp|avif)\b)[^"')\s>]*/gi,
+    ''
+  )
+
+  // ─── 5. Remove HTML comments ───
+  clean = clean.replace(/<!--[\s\S]*?-->/g, '')
 
   return clean
 }
 
-/**
- * Strip all HTML — for plain text display
- */
 export function stripHtml(html: string): string {
   if (!html) return ''
   return html
-    .replace(/<[^>]*>/g, '')
+    .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
     .trim()
 }

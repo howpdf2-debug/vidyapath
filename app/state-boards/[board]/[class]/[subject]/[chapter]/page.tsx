@@ -9,9 +9,9 @@ import {
   Home,
   BookOpen,
   Languages,
-  ChevronLeft,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase'
+import { createServerClient } from '@/lib/supabase'
+import { createServerClientWithCookies } from '@/lib/supabase-server'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import {
   getBoard,
@@ -25,8 +25,9 @@ import { CommentSection } from '@/components/CommentSection'
 import { BookmarkButton } from '@/components/BookmarkButton'
 import { ShareButton } from '@/components/ShareButton'
 import { ProgressButton } from '@/app/ncert/[class]/[subject]/[chapter]/ProgressButton'
-import { sanitizeHtml } from '@/lib/sanitize'
-import { getServerSession, isUserConfirmed } from '@/lib/auth'
+import { NotesContent } from '@/components/NotesContent'
+import { isUserConfirmed } from '@/lib/auth'
+import { getServerSession } from '@/lib/auth-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +62,7 @@ export default async function ChapterPage({ params }: PageProps) {
   const dbSubjectName = getDbSubjectName(params.subject)
   if (!dbSubjectName) notFound()
 
-  const supabase = createClient()
+  const supabase = createServerClient()
 
   const { data: chapter } = await supabase
     .from('ncert')
@@ -74,8 +75,12 @@ export default async function ChapterPage({ params }: PageProps) {
 
   if (!chapter) notFound()
 
+  // Session fetch
+  const session = await getServerSession()
+  const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
+
   // Fetch related data in parallel
-  const [notesRes, videosRes, session] = await Promise.all([
+  const [notesRes, videosRes] = await Promise.all([
     supabase
       .from('chapter_notes')
       .select('*')
@@ -91,17 +96,16 @@ export default async function ChapterPage({ params }: PageProps) {
       .eq('language', 'hi')
       .order('is_featured', { ascending: false })
       .order('order_index', { ascending: true }),
-    getServerSession().catch(() => null),
   ])
 
   const notes = notesRes.data || []
   const videos = videosRes.data || []
-  const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
 
-  // Bookmark check
+  // Bookmark check — cookie-aware client for RLS
   let isBookmarked = false
   if (isLoggedIn && session?.user) {
-    const { data: bookmark } = await supabase
+    const supabaseAuth = createServerClientWithCookies()
+    const { data: bookmark } = await supabaseAuth
       .from('bookmarks')
       .select('id')
       .eq('user_id', session.user.id)
@@ -115,7 +119,6 @@ export default async function ChapterPage({ params }: PageProps) {
   const chapterTitle = chapter.chapter_title || `अध्याय ${chapterNum}`
   const canonicalUrl = `${SITE_URL}/state-boards/${params.board}/${params.class}/${params.subject}/${params.chapter}`
 
-  // JSON-LD structured data
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LearningResource',
@@ -227,15 +230,11 @@ export default async function ChapterPage({ params }: PageProps) {
 
         {/* Action Row */}
         <div className="flex flex-wrap items-center gap-2">
-          {isLoggedIn && (
-            <BookmarkButton
-              chapterId={chapter.id}
-              initialBookmarked={isBookmarked}
-            />
-          )}
-          {isLoggedIn && (
-            <ProgressButton chapterId={chapter.id} isLoggedIn={true} />
-          )}
+          <BookmarkButton
+            chapterId={chapter.id}
+            initialBookmarked={isBookmarked}
+          />
+          <ProgressButton chapterId={chapter.id} />
           {pdfUrl && (
             <a
               href={pdfUrl}
@@ -280,12 +279,7 @@ export default async function ChapterPage({ params }: PageProps) {
                     {note.topic}
                   </h3>
                 )}
-                <div
-                  className="prose prose-sm sm:prose-base dark:prose-invert max-w-none prose-headings:font-bold prose-headings:text-slate-900 dark:prose-headings:text-white prose-p:text-slate-700 dark:prose-p:text-slate-300 prose-li:text-slate-700 dark:prose-li:text-slate-300"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeHtml(note.content_html),
-                  }}
-                />
+                <NotesContent html={note.content_html} />
               </article>
             ))
           ) : (

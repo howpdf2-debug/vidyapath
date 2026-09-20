@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -14,6 +14,25 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const router = useRouter()
 
+  // ✅ GAP 2 FIX: Purane localStorage cleanup + already logged-in redirect
+  useEffect(() => {
+    // 1) Purane localStorage tokens hatado (ek baar ka cleanup)
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        .forEach((k) => localStorage.removeItem(k))
+    } catch {
+      // SSR safety — ignore
+    }
+
+    // 2) Agar already logged in ho, home pe bhejo
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        window.location.href = '/'
+      }
+    })
+  }, [])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -24,7 +43,7 @@ export default function LoginPage() {
       return
     }
     toast.success('Login successful!')
-    router.push('/')
+     window.location.href = '/'
   }
 
   const handleGoogleLogin = async () => {
