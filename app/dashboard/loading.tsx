@@ -1,38 +1,32 @@
-export default function Loading() {
+export default function DashboardLoading() {
   return (
-    <div className="space-y-8 animate-pulse">
-      {/* Welcome header */}
-      <div className="space-y-2">
-        <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-xl w-72" />
-        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-lg w-96" />
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="Loading dashboard"
+      className="space-y-8 animate-pulse"
+    >
+      <span className="sr-only">Loading dashboard…</span>
+
+      <div className="h-32 rounded-3xl bg-slate-200 dark:bg-slate-800" />
+
+      <div>
+        <div className="h-6 w-40 rounded bg-slate-200 dark:bg-slate-800 mb-4" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="h-32 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          <div className="h-32 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          <div className="h-32 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+        </div>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div
-            key={i}
-            className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 p-6 space-y-3"
-          >
-            <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-xl" />
-            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-20" />
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32" />
-          </div>
-        ))}
-      </div>
+      <div className="h-40 rounded-2xl bg-slate-200 dark:bg-slate-800" />
 
-      {/* Recent activity list */}
-      <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-48" />
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="flex items-center gap-4">
-            <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-xl flex-shrink-0" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-            </div>
-          </div>
-        ))}
+      <div>
+        <div className="h-6 w-32 rounded bg-slate-200 dark:bg-slate-800 mb-4" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="h-28 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          <div className="h-28 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+        </div>
       </div>
     </div>
   )

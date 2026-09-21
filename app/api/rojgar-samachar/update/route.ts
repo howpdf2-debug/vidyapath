@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { XMLParser } from 'fast-xml-parser'
+import { isAuthorizedCronRequest } from '@/lib/cron-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -276,7 +277,12 @@ async function fetchFeedWithFallback(
   return null
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // ✅ SECURITY FIX: public RSS trigger band — sirf cron se chalega
+  if (!isAuthorizedCronRequest(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
