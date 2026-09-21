@@ -22,15 +22,6 @@ const PUBLIC_AUTH = [
   '/auth/callback',
 ]
 
-// 🚨 EMERGENCY BLOCK LIST
-// Vercel edge cache ki wajah se in routes ka naya auth code propagate nahi
-// ho raha. Ye middleware se block hai — cache bypass karta hai, 100% effective.
-// TODO: Vercel cache invalidate hone ke baad ye list empty karo.
-const EMERGENCY_BLOCKED = [
-  '/api/rojgar-samachar/cleanup',
-  '/api/rojgar-samachar/update',
-]
-
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some(
     (p) => pathname === p || pathname.startsWith(p + '/')
@@ -53,17 +44,6 @@ export async function middleware(request: NextRequest) {
 
   // ✅ request.headers को सीधे mutate करो — नई object नहीं
   request.headers.set('x-pathname', pathname)
-
-  // ─── 🚨 EMERGENCY BLOCK — सबसे पहले, सब कुछ bypass ───
-  // Ye check cache ke upar chalta hai kyunki middleware cache-free hai.
-  if (EMERGENCY_BLOCKED.includes(pathname)) {
-    return applySecurityHeaders(
-      NextResponse.json(
-        { error: 'Service temporarily unavailable' },
-        { status: 503 }
-      )
-    )
-  }
 
   // ─── Public auth routes — sirf headers ───
   if (matchesPrefix(pathname, PUBLIC_AUTH)) {
