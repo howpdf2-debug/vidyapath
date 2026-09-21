@@ -138,11 +138,19 @@ export function NoteCard({ note }: NoteCardProps) {
         text: `${note.topic} — VidyaPath`,
         url: note.pdf_url,
       }
-      if (typeof navigator !== 'undefined' && 'share' in navigator) {
-        await navigator.share(shareData)
-      } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(note.pdf_url)
-        // Simple fallback — no toast dependency
+            // ✅ FIX: Use explicit type guards to avoid TS narrowing issue
+      const nav = typeof navigator !== 'undefined' ? navigator : null
+      const canShare =
+        nav !== null &&
+        typeof (nav as Navigator).share === 'function'
+      const canCopy =
+        nav !== null &&
+        typeof (nav as Navigator).clipboard?.writeText === 'function'
+
+      if (canShare) {
+        await (nav as Navigator).share(shareData)
+      } else if (canCopy) {
+        await (nav as Navigator).clipboard.writeText(note.pdf_url)
         alert('Link copy हो गया!')
       }
     } catch {

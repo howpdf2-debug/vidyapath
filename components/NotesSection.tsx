@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '@/lib/supabase'
 
 interface NotesSectionProps {
-  chapterId?: number
+  chapterId?: string | number
   chapterTitle?: string
   className?: string
   notesAvailable?: boolean

@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
 interface ProgressButtonProps {
-  chapterId: number
+  chapterId: string | number
   isLoggedIn?: boolean
 }
 

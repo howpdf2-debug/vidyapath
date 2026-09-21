@@ -19,6 +19,8 @@ interface ChapterNavigationProps {
   next: ChapterLink | null
   language: 'en' | 'hi'
   variant?: 'indigo' | 'emerald' | 'teal'
+  subjectHref?: string
+  subjectName?: string
 }
 
 export function ChapterNavigation({
