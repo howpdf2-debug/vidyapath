@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect, useRef } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 import {
   Menu,
   X,
@@ -33,18 +34,36 @@ const competitiveExams = [
   { name: 'Bank', slug: 'bank' },
 ]
 
+// ✅ GAP 1 FIX: Outer wrapper — admin pages pe header bilkul render nahi hoga
+//    Hooks rule safe: sirf usePathname call hota hai, phir early return
 export function Header() {
+  const pathname = usePathname()
+
+  // Admin routes pe public header hide — sirf admin ka apna topbar dikhe
+  if (pathname?.startsWith('/admin')) {
+    return null
+  }
+
+  return <HeaderContent />
+}
+
+// Actual header content — yahan saare hooks aur JSX
+function HeaderContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isCompetitiveOpen, setIsCompetitiveOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  // ✅ GAP 2 FIX: `any` → `User | null` (type safe)
+  const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const { theme, setTheme } = useTheme()
   const pathname = usePathname()
+  const router = useRouter()
 
   const boardRef = useRef<HTMLDivElement>(null)
   const competitiveRef = useRef<HTMLDivElement>(null)
+  // ✅ GAP 5 FIX: hamburger button ref — focus return ke liye
+  const hamburgerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -57,12 +76,16 @@ export function Header() {
     setIsCompetitiveOpen(false)
   }, [pathname])
 
-  // Body scroll lock + Escape key
+  // Body scroll lock + Escape key + focus management
   useEffect(() => {
     if (isMenuOpen) {
       document.body.style.overflow = 'hidden'
       const handleEsc = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setIsMenuOpen(false)
+        if (e.key === 'Escape') {
+          setIsMenuOpen(false)
+          // ✅ GAP 5 FIX: focus wapas hamburger pe
+          hamburgerRef.current?.focus()
+        }
       }
       document.addEventListener('keydown', handleEsc)
       return () => {
@@ -107,10 +130,22 @@ export function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // ✅ GAP 3 FIX: logout ke baad protected page pe stuck na raho
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setUser(null)
     setIsMenuOpen(false)
+    // Agar protected page pe the, home pe bhejo
+    const protectedPrefixes = ['/dashboard', '/bookmarks', '/profile']
+    if (protectedPrefixes.some((p) => pathname?.startsWith(p))) {
+      router.push('/')
+    }
+  }
+
+  // Helper: active link detection
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/'
+    return pathname === href || pathname?.startsWith(href + '/')
   }
 
   return (
@@ -143,7 +178,13 @@ export function Header() {
           <nav className="hidden md:flex items-center gap-2 lg:gap-3 flex-1 text-sm font-medium">
             <Link
               href="/ncert"
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
+              // ✅ GAP 4 FIX: aria-current for a11y
+              aria-current={isActive('/ncert') ? 'page' : undefined}
+              className={`hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 ${
+                isActive('/ncert')
+                  ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                  : ''
+              }`}
             >
               NCERT
             </Link>
@@ -152,7 +193,11 @@ export function Header() {
             <div className="relative" ref={boardRef}>
               <button
                 onClick={() => setIsBoardOpen(!isBoardOpen)}
-                className="flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
+                className={`flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 ${
+                  pathname?.startsWith('/state-boards')
+                    ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                    : ''
+                }`}
                 aria-label="Toggle State Boards dropdown"
                 aria-expanded={isBoardOpen}
               >
@@ -191,7 +236,11 @@ export function Header() {
             <div className="relative" ref={competitiveRef}>
               <button
                 onClick={() => setIsCompetitiveOpen(!isCompetitiveOpen)}
-                className="flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
+                className={`flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 ${
+                  pathname?.startsWith('/competitive-exams')
+                    ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                    : ''
+                }`}
                 aria-label="Toggle Competitive Exams dropdown"
                 aria-expanded={isCompetitiveOpen}
               >
@@ -222,19 +271,34 @@ export function Header() {
 
             <Link
               href="/notes"
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5"
+              aria-current={isActive('/notes') ? 'page' : undefined}
+              className={`hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 ${
+                isActive('/notes')
+                  ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                  : ''
+              }`}
             >
               Notes
             </Link>
             <Link
               href="/results"
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 hidden lg:inline-flex"
+              aria-current={isActive('/results') ? 'page' : undefined}
+              className={`hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 hidden lg:inline-flex ${
+                isActive('/results')
+                  ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                  : ''
+              }`}
             >
               Results
             </Link>
             <Link
               href="/rojgar-samachar"
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 hidden lg:inline-flex"
+              aria-current={isActive('/rojgar-samachar') ? 'page' : undefined}
+              className={`hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 hidden lg:inline-flex ${
+                isActive('/rojgar-samachar')
+                  ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                  : ''
+              }`}
             >
               Rojgar
             </Link>
@@ -277,7 +341,10 @@ export function Header() {
             {/* Desktop Auth */}
             <div className="hidden md:flex items-center gap-2">
               {authLoading ? (
-                <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                <div
+                  className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
+                  aria-hidden="true"
+                />
               ) : user ? (
                 <>
                   <Link
@@ -323,8 +390,9 @@ export function Header() {
               )}
             </div>
 
-            {/* Hamburger */}
+            {/* Hamburger — ref attached */}
             <button
+              ref={hamburgerRef}
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
               aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
@@ -348,7 +416,13 @@ export function Header() {
             onClick={() => setIsMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed top-14 sm:top-16 left-0 right-0 z-50 md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 max-h-[calc(100dvh-3.5rem)] overflow-y-auto animate-slide-in-top">
+          {/* ✅ GAP 6 FIX: role + aria-modal */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile menu"
+            className="fixed top-14 sm:top-16 left-0 right-0 z-50 md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 max-h-[calc(100dvh-3.5rem)] overflow-y-auto animate-slide-in-top"
+          >
             <div className="p-4 space-y-1 safe-bottom">
               <div className="pb-3 mb-2 border-b border-gray-200 dark:border-gray-700">
                 <SearchBar />
@@ -424,7 +498,10 @@ export function Header() {
               {/* Auth */}
               <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-700 space-y-1">
                 {authLoading ? (
-                  <div className="w-24 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mx-3" />
+                  <div
+                    className="w-24 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mx-3"
+                    aria-hidden="true"
+                  />
                 ) : user ? (
                   <>
                     <Link

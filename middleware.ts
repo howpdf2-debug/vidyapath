@@ -22,51 +22,43 @@ const PUBLIC_AUTH = [
   '/auth/callback',
 ]
 
-// ✅ GAP 1 FIX: security headers ek jagah — har response pe apply karo
-const SECURITY_HEADERS: Record<string, string> = {
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'SAMEORIGIN',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-}
-
-function withSecurityHeaders(res: NextResponse): NextResponse {
-  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    res.headers.set(key, value)
-  }
-  return res
-}
-
-// ✅ GAP 2 FIX: exact match ya slash boundary — /admin OK, /administrator NAHI
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some(
     (p) => pathname === p || pathname.startsWith(p + '/')
   )
 }
 
+function applySecurityHeaders(res: NextResponse): NextResponse {
+  res.headers.set('X-Content-Type-Options', 'nosniff')
+  res.headers.set('X-Frame-Options', 'SAMEORIGIN')
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  )
+  return res
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-pathname', pathname)
-
-  // ✅ Ek hi response object — setAll isi ko mutate karega, replace nahi
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  })
+  // ✅ request.headers को सीधे mutate करो — नई object नहीं
+  request.headers.set('x-pathname', pathname)
 
   // ─── Public auth routes — sirf headers ───
   if (matchesPrefix(pathname, PUBLIC_AUTH)) {
-    return withSecurityHeaders(response)
+    return applySecurityHeaders(NextResponse.next({ request }))
   }
 
   // ─── Non-protected routes — sirf headers ───
   if (!matchesPrefix(pathname, PROTECTED_PREFIXES)) {
-    return withSecurityHeaders(response)
+    return applySecurityHeaders(NextResponse.next({ request }))
   }
 
-  // ─── Protected route — Supabase auth verify karo ───
-  let user: { id: string } | null = null
+  // ─── Protected route — Supabase auth verify ───
+  // ✅ पूरा request object pass करो, headers snapshot नहीं
+  let response = NextResponse.next({ request })
+
   try {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -77,58 +69,69 @@ export async function middleware(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            // ✅ GAP 1 FIX: response ko REPLACE nahi karte
-            //    Same response pe cookies set karte hain → headers bache rehte hain
-            cookiesToSet.forEach(({ name, value, options }) => {
+            // ✅ request.cookies mutate → request object में जाता है
+            cookiesToSet.forEach(({ name, value }) =>
               request.cookies.set(name, value)
+            )
+            // ✅ Reassign — mutated request के साथ
+            response = NextResponse.next({ request })
+            cookiesToSet.forEach(({ name, value, options }) =>
               response.cookies.set(name, value, options)
-            })
+            )
           },
         },
       }
     )
 
-    const result = await supabase.auth.getUser()
-    user = result.data.user
-  } catch (err) {
-    // ✅ GAP 3 FIX: crash nahi — safe side, unauthenticated treat karo
-    console.error('[middleware] auth.getUser failed:', err)
-    user = null
-  }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  // ─── /admin/* ───
-  if (pathname.startsWith('/admin')) {
-    if (!user) {
-      const loginUrl = new URL('/admin/login', request.url)
-      loginUrl.searchParams.set('next', pathname)
-      // ✅ GAP 4+6 FIX: redirect pe bhi headers
-      return withSecurityHeaders(NextResponse.redirect(loginUrl))
+    if (pathname.startsWith('/admin')) {
+      if (!user) {
+        const loginUrl = new URL('/admin/login', request.url)
+        loginUrl.searchParams.set('next', pathname)
+        return applySecurityHeaders(NextResponse.redirect(loginUrl))
+      }
+      return applySecurityHeaders(response)
     }
-    return withSecurityHeaders(response)
-  }
 
-  // ─── /api/admin/* ───
-  if (pathname.startsWith('/api/admin')) {
-    if (!user) {
-      // ✅ GAP 5 FIX: 401 JSON pe bhi headers
-      return withSecurityHeaders(
+    if (pathname.startsWith('/api/admin')) {
+      if (!user) {
+        return applySecurityHeaders(
+          NextResponse.json(
+            { error: 'Not authenticated' },
+            { status: 401 }
+          )
+        )
+      }
+      return applySecurityHeaders(response)
+    }
+
+    if (matchesPrefix(pathname, ['/dashboard', '/bookmarks', '/profile'])) {
+      if (!user) {
+        const loginUrl = new URL('/login', request.url)
+        loginUrl.searchParams.set('next', pathname)
+        return applySecurityHeaders(NextResponse.redirect(loginUrl))
+      }
+      return applySecurityHeaders(response)
+    }
+
+    return applySecurityHeaders(response)
+  } catch (err) {
+    console.error('[middleware] auth.getUser failed:', err)
+    if (pathname.startsWith('/api/admin')) {
+      return applySecurityHeaders(
         NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
       )
     }
-    return withSecurityHeaders(response)
-  }
-
-  // ─── Student protected routes ───
-  if (matchesPrefix(pathname, ['/dashboard', '/bookmarks', '/profile'])) {
-    if (!user) {
-      const loginUrl = new URL('/login', request.url)
-      loginUrl.searchParams.set('next', pathname)
-      return withSecurityHeaders(NextResponse.redirect(loginUrl))
+    if (pathname.startsWith('/admin')) {
+      return applySecurityHeaders(
+        NextResponse.redirect(new URL('/admin/login', request.url))
+      )
     }
-    return withSecurityHeaders(response)
+    return applySecurityHeaders(NextResponse.next({ request }))
   }
-
-  return withSecurityHeaders(response)
 }
 
 export const config = {
