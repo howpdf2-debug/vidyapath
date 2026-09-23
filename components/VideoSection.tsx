@@ -375,12 +375,15 @@ export function VideoSection({
                 >
                   <div className="relative aspect-video bg-slate-900">
                     {/* ✅ V2-8 FIX: aspect-video prevents CLS, decoding async */}
+                    {/* P2: add intrinsic width/height as belt-and-braces */}
                     <img
                       src={
                         v.thumbnail_url ||
                         getYouTubeThumbnail(v.youtube_id, 'mq')
                       }
                       alt={v.title}
+                      width={320}
+                      height={180}
                       className="w-full h-full object-cover"
                       loading="lazy"
                       decoding="async"

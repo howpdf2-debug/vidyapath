@@ -62,24 +62,26 @@
     -webkit-text-size-adjust: 100%;
   }
 
-  body {
-    @apply bg-paper text-ink;
-    min-height: 100vh;
-    min-height: 100dvh;
-    margin: 0;
-    background-image: radial-gradient(
-      circle at 100% 0%,
-      rgb(99 102 241 / 0.045),
-      transparent 32rem
-    );
-    background-repeat: no-repeat;
-    background-position: top right;
-    font-family: var(--font-inter), Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 1rem;
-    line-height: 1.6;
-    overflow-x: hidden;
-    transition: background-color 200ms ease, color 200ms ease;
-  }
+body {
+  @apply bg-paper text-ink;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background-image: radial-gradient(
+    circle at 100% 0%,
+    rgb(99 102 241 / 0.045),
+    transparent 32rem
+  );
+  background-repeat: no-repeat;
+  background-position: top right;
+  /* P2: Hindi glyphs fall to Hind (not system-ui) → no metric-mismatch reflow */
+  font-family: var(--font-inter), var(--font-hind), Inter, Hind, "Noto Sans Devanagari", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  overflow-x: hidden;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
 
   .dark body {
     @apply bg-ink text-paper;

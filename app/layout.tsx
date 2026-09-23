@@ -18,6 +18,8 @@ const inter = Inter({
   variable: '--font-inter',
   display: 'swap',
   preload: true,
+  adjustFontFallback: true,
+  fallback: ['system-ui', 'Arial', 'sans-serif'],
 })
 
 const hind = Hind({
@@ -26,6 +28,8 @@ const hind = Hind({
   variable: '--font-hind',
   display: 'swap',
   preload: true,
+  adjustFontFallback: true,
+  fallback: ['system-ui', 'Arial', 'sans-serif'],
 })
 
 export const viewport: Viewport = {
@@ -92,9 +96,7 @@ export const metadata: Metadata = {
       'Free NCERT chapters, notes, videos and PDFs in Hindi and English.',
     images: ['https://vidyapath.in/og-image.png'],
   },
-  alternates: {
-    canonical: '/',
-  },
+  alternates: { canonical: '/' },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -143,7 +145,8 @@ export default function RootLayout({
       className={`${inter.variable} ${hind.variable}`}
       suppressHydrationWarning
     >
-      <body className="min-h-[100dvh]">
+      {/* P2: font-sans kept as safety net — real font chain lives in globals.css body */}
+      <body className="min-h-[100dvh] font-sans">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -165,9 +168,10 @@ export default function RootLayout({
           </Suspense>
 
           <div className="min-h-screen flex flex-col">
+            {/* P2: fallback must MATCH real header height incl. iOS safe-area */}
             <Suspense
               fallback={
-                <div className="h-14 sm:h-16 border-b border-gray-200 dark:border-gray-800" />
+                <div className="h-14 sm:h-16 border-b border-gray-200 dark:border-gray-800 pt-[env(safe-area-inset-top)]" />
               }
             >
               <Header />
@@ -177,6 +181,7 @@ export default function RootLayout({
               <div className="container mx-auto px-[clamp(1rem,2vw,2rem)] py-[clamp(1rem,2vw,1.5rem)] max-w-[1400px]">
                 <div className="flex flex-col xl:flex-row gap-[clamp(1rem,2vw,1.5rem)]">
                   <main className="flex-1 min-w-0">{children}</main>
+                  {/* P2: xl-width reserved; AdSidebar owns its own min-height placeholder */}
                   <div className="hidden xl:block xl:w-64 flex-shrink-0">
                     <AdSidebar position="right" />
                   </div>
@@ -185,7 +190,10 @@ export default function RootLayout({
             </div>
 
             <Footer />
+
+            {/* P2: AdBanner is `fixed bottom-0` — takes NO flow space. No wrapper needed. */}
             <AdBanner />
+
             <BackToTop />
           </div>
         </ThemeProvider>

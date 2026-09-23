@@ -103,8 +103,28 @@ const config: Config = {
       },
 
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
-        heading: ["var(--font-hind)", "Hind", "Noto Sans Devanagari", "var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        // P2: add Hind after Inter → Devanagari glyphs use Hind, Latin uses Inter.
+        // Zero visual change for English; Hindi becomes consistent.
+        sans: [
+          "var(--font-inter)",
+          "var(--font-hind)",
+          "Inter",
+          "Hind",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "sans-serif",
+        ],
+        heading: [
+          "var(--font-hind)",
+          "Hind",
+          "Noto Sans Devanagari",
+          "var(--font-inter)",
+          "Inter",
+          "system-ui",
+          "sans-serif",
+        ],
       },
 
       fontSize: {

@@ -325,6 +325,10 @@ export default function AdminVideos() {
                       <img
                         src={getYouTubeThumbnail(previewId, 'hq')}
                         alt="Preview"
+                        width={128}
+                        height={80}
+                        loading="lazy"
+                        decoding="async"
                         className="w-32 h-20 object-cover rounded-lg shadow"
                       />
                       <div className="flex-1 min-w-0">
@@ -529,8 +533,11 @@ export default function AdminVideos() {
                     <img
                       src={v.thumbnail_url || getYouTubeThumbnail(v.youtube_id, 'hq')}
                       alt={v.title}
+                      width={640}
+                      height={360}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
+                      decoding="async"
                     />
                     {v.is_featured && (
                       <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center gap-1">

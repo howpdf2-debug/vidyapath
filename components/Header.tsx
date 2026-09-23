@@ -34,12 +34,10 @@ const competitiveExams = [
   { name: 'Bank', slug: 'bank' },
 ]
 
-// ✅ GAP 1 FIX: Outer wrapper — admin pages pe header bilkul render nahi hoga
-//    Hooks rule safe: sirf usePathname call hota hai, phir early return
+// ✅ Admin routes pe header bilkul render nahi hoga
 export function Header() {
   const pathname = usePathname()
 
-  // Admin routes pe public header hide — sirf admin ka apna topbar dikhe
   if (pathname?.startsWith('/admin')) {
     return null
   }
@@ -47,13 +45,11 @@ export function Header() {
   return <HeaderContent />
 }
 
-// Actual header content — yahan saare hooks aur JSX
 function HeaderContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isCompetitiveOpen, setIsCompetitiveOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  // ✅ GAP 2 FIX: `any` → `User | null` (type safe)
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const { theme, setTheme } = useTheme()
@@ -62,8 +58,8 @@ function HeaderContent() {
 
   const boardRef = useRef<HTMLDivElement>(null)
   const competitiveRef = useRef<HTMLDivElement>(null)
-  // ✅ GAP 5 FIX: hamburger button ref — focus return ke liye
   const hamburgerRef = useRef<HTMLButtonElement>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -76,14 +72,13 @@ function HeaderContent() {
     setIsCompetitiveOpen(false)
   }, [pathname])
 
-  // Body scroll lock + Escape key + focus management
+  // Body scroll lock + Escape key + focus return
   useEffect(() => {
     if (isMenuOpen) {
       document.body.style.overflow = 'hidden'
       const handleEsc = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           setIsMenuOpen(false)
-          // ✅ GAP 5 FIX: focus wapas hamburger pe
           hamburgerRef.current?.focus()
         }
       }
@@ -95,6 +90,46 @@ function HeaderContent() {
     }
   }, [isMenuOpen])
 
+  // ✅ P2 GAP: focus trap inside mobile drawer
+  useEffect(() => {
+    if (!isMenuOpen) return
+    const drawer = drawerRef.current
+    if (!drawer) return
+
+    const focusables = drawer.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+    if (focusables.length === 0) return
+
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+
+    // ✅ FIX: auto-focus first Link/Button (skip input → no mobile keyboard pop-up)
+    const autoFocusTarget =
+      Array.from(focusables).find(
+        (el) => el.tagName === 'A' || el.tagName === 'BUTTON'
+      ) ?? first
+
+    const focusTimer = window.setTimeout(() => autoFocusTarget.focus(), 50)
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      const active = document.activeElement as HTMLElement | null
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', handleTab)
+    return () => {
+      window.clearTimeout(focusTimer)
+      document.removeEventListener('keydown', handleTab)
+    }
+  }, [isMenuOpen])
+
   // Supabase auth
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -103,8 +138,9 @@ function HeaderContent() {
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setUser(session?.user || null)
+        setAuthLoading(false)
       }
     )
 
@@ -130,22 +166,24 @@ function HeaderContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // ✅ GAP 3 FIX: logout ke baad protected page pe stuck na raho
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setUser(null)
     setIsMenuOpen(false)
-    // Agar protected page pe the, home pe bhejo
     const protectedPrefixes = ['/dashboard', '/bookmarks', '/profile']
     if (protectedPrefixes.some((p) => pathname?.startsWith(p))) {
       router.push('/')
     }
   }
 
-  // Helper: active link detection
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/'
     return pathname === href || pathname?.startsWith(href + '/')
+  }
+
+  const closeMobileMenu = () => {
+    setIsMenuOpen(false)
+    hamburgerRef.current?.focus()
   }
 
   return (
@@ -161,7 +199,7 @@ function HeaderContent() {
             <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shadow-md group-hover:scale-105 transition">
               <Image
                 src="/icon-192.png"
-                alt="VidyaPath Logo"
+                alt=""
                 width={36}
                 height={36}
                 className="w-full h-full object-cover"
@@ -178,7 +216,6 @@ function HeaderContent() {
           <nav className="hidden md:flex items-center gap-2 lg:gap-3 flex-1 text-sm font-medium">
             <Link
               href="/ncert"
-              // ✅ GAP 4 FIX: aria-current for a11y
               aria-current={isActive('/ncert') ? 'page' : undefined}
               className={`hover:text-indigo-600 dark:hover:text-indigo-400 transition whitespace-nowrap px-2 py-1.5 ${
                 isActive('/ncert')
@@ -200,14 +237,16 @@ function HeaderContent() {
                 }`}
                 aria-label="Toggle State Boards dropdown"
                 aria-expanded={isBoardOpen}
+                aria-haspopup="true"
               >
-                <MapPin className="w-4 h-4" />
+                <MapPin className="w-4 h-4" aria-hidden="true" />
                 <span className="hidden lg:inline">State Boards</span>
                 <span className="lg:hidden">Boards</span>
                 <ChevronDown
                   className={`w-4 h-4 transition-transform duration-200 ${
                     isBoardOpen ? 'rotate-180' : ''
                   }`}
+                  aria-hidden="true"
                 />
               </button>
 
@@ -222,6 +261,7 @@ function HeaderContent() {
                     >
                       <span
                         className={`w-2.5 h-2.5 rounded-full ${board.color}`}
+                        aria-hidden="true"
                       />
                       <span className="text-sm text-gray-800 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                         {board.name}
@@ -243,13 +283,15 @@ function HeaderContent() {
                 }`}
                 aria-label="Toggle Competitive Exams dropdown"
                 aria-expanded={isCompetitiveOpen}
+                aria-haspopup="true"
               >
-                <Briefcase className="w-4 h-4" />
+                <Briefcase className="w-4 h-4" aria-hidden="true" />
                 Exams
                 <ChevronDown
                   className={`w-4 h-4 transition-transform duration-200 ${
                     isCompetitiveOpen ? 'rotate-180' : ''
                   }`}
+                  aria-hidden="true"
                 />
               </button>
 
@@ -310,39 +352,41 @@ function HeaderContent() {
 
           {/* RIGHT ACTIONS */}
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-            {/* Mobile search icon */}
+            {/* Mobile search */}
             <Link
               href="/search"
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
               aria-label="Search"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-5 h-5" aria-hidden="true" />
             </Link>
 
-            {/* Theme toggle */}
-            {mounted && (
-              <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
-                aria-label={
-                  theme === 'dark'
-                    ? 'Switch to light mode'
-                    : 'Switch to dark mode'
-                }
-              >
-                {theme === 'dark' ? (
-                  <Sun className="w-5 h-5" />
+            {/* ✅ P2 FIX: Theme toggle ALWAYS renders — reserved 20x20 space.
+                Prevents CLS from server rendering nothing vs client rendering icon. */}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
+              aria-label={
+                theme === 'dark'
+                  ? 'Switch to light mode'
+                  : 'Switch to dark mode'
+              }
+              suppressHydrationWarning
+            >
+              <span className="inline-flex w-5 h-5 items-center justify-center">
+                {!mounted ? null : theme === 'dark' ? (
+                  <Sun className="w-5 h-5" aria-hidden="true" />
                 ) : (
-                  <Moon className="w-5 h-5" />
+                  <Moon className="w-5 h-5" aria-hidden="true" />
                 )}
-              </button>
-            )}
+              </span>
+            </button>
 
-            {/* Desktop Auth */}
-            <div className="hidden md:flex items-center gap-2">
+            {/* ✅ P2 FIX: Desktop Auth — reserved min-width to avoid CLS */}
+            <div className="hidden md:flex items-center gap-2 min-w-[140px] justify-end">
               {authLoading ? (
                 <div
-                  className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
+                  className="w-24 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
                   aria-hidden="true"
                 />
               ) : user ? (
@@ -357,8 +401,8 @@ function HeaderContent() {
                     href="/profile"
                     className="flex items-center gap-1 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 whitespace-nowrap"
                   >
-                    <UserIcon className="w-4 h-4" />
-                    <span className="hidden lg:inline">
+                    <UserIcon className="w-4 h-4" aria-hidden="true" />
+                    <span className="hidden lg:inline max-w-[100px] truncate">
                       {user.user_metadata?.full_name ||
                         user.email?.split('@')[0] ||
                         'Profile'}
@@ -369,7 +413,7 @@ function HeaderContent() {
                     className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
                     aria-label="Logout"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </>
               ) : (
@@ -390,18 +434,19 @@ function HeaderContent() {
               )}
             </div>
 
-            {/* Hamburger — ref attached */}
+            {/* Hamburger */}
             <button
               ref={hamburgerRef}
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
               aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={isMenuOpen}
+              aria-controls="mobile-menu"
             >
               {isMenuOpen ? (
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6" aria-hidden="true" />
               ) : (
-                <Menu className="w-6 h-6" />
+                <Menu className="w-6 h-6" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -411,13 +456,15 @@ function HeaderContent() {
       {/* MOBILE DRAWER */}
       {isMenuOpen && (
         <>
+          {/* Backdrop — z-[45] so it sits above AdBanner (z-30), below drawer (z-50) */}
           <div
-            className="fixed inset-0 bg-black/40 z-40 md:hidden animate-fade-in"
-            onClick={() => setIsMenuOpen(false)}
+            className="fixed inset-0 bg-black/40 z-[45] md:hidden animate-fade-in"
+            onClick={closeMobileMenu}
             aria-hidden="true"
           />
-          {/* ✅ GAP 6 FIX: role + aria-modal */}
           <div
+            id="mobile-menu"
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Mobile menu"
@@ -431,19 +478,18 @@ function HeaderContent() {
               <Link
                 href="/ncert"
                 className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMobileMenu}
               >
                 📚 NCERT
               </Link>
               <Link
                 href="/notes"
                 className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMobileMenu}
               >
                 📝 Notes
               </Link>
 
-              {/* State Boards */}
               <div className="py-2">
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1 px-3">
                   State Boards
@@ -453,17 +499,17 @@ function HeaderContent() {
                     key={board.slug}
                     href={`/state-boards/${board.slug}`}
                     className="flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
-                    onClick={() => setIsMenuOpen(false)}
+                    onClick={closeMobileMenu}
                   >
                     <span
                       className={`w-2 h-2 rounded-full ${board.color}`}
+                      aria-hidden="true"
                     />
                     {board.name}
                   </Link>
                 ))}
               </div>
 
-              {/* Competitive Exams */}
               <div className="py-2">
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1 px-3">
                   Competitive Exams
@@ -473,7 +519,7 @@ function HeaderContent() {
                     key={exam.slug}
                     href={`/competitive-exams/${exam.slug}`}
                     className="block py-2.5 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
-                    onClick={() => setIsMenuOpen(false)}
+                    onClick={closeMobileMenu}
                   >
                     {exam.name}
                   </Link>
@@ -483,19 +529,18 @@ function HeaderContent() {
               <Link
                 href="/results"
                 className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMobileMenu}
               >
                 📊 Results
               </Link>
               <Link
                 href="/rojgar-samachar"
                 className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMobileMenu}
               >
                 📰 Rojgar Samachar
               </Link>
 
-              {/* Auth */}
               <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-700 space-y-1">
                 {authLoading ? (
                   <div
@@ -507,14 +552,14 @@ function HeaderContent() {
                     <Link
                       href="/dashboard"
                       className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMobileMenu}
                     >
                       Dashboard
                     </Link>
                     <Link
                       href="/profile"
                       className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-indigo-600 dark:text-indigo-400"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMobileMenu}
                     >
                       {user.user_metadata?.full_name ||
                         user.email?.split('@')[0] ||
@@ -523,7 +568,7 @@ function HeaderContent() {
                     <Link
                       href="/bookmarks"
                       className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMobileMenu}
                     >
                       Bookmarks
                     </Link>
@@ -539,14 +584,14 @@ function HeaderContent() {
                     <Link
                       href="/login"
                       className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMobileMenu}
                     >
                       Login
                     </Link>
                     <Link
                       href="/signup"
                       className="block py-3 px-3 bg-indigo-600 text-white text-center rounded-lg hover:bg-indigo-700 font-medium"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMobileMenu}
                     >
                       Sign Up
                     </Link>
