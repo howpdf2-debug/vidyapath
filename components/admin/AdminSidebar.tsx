@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react'
 import {
   LayoutDashboard, FileText, FileImage, Video, BookOpen,
   GraduationCap, Newspaper, Users, BarChart3, Settings,
-  Wrench, X, ChevronLeft, ChevronRight, Home,
+  Wrench, X, ChevronLeft, ChevronRight, Home, HelpCircle,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -30,6 +30,7 @@ const NAV_SECTIONS = [
       { href: '/admin/notes', label: 'Notes', icon: FileText },
       { href: '/admin/pdfs', label: 'PDFs', icon: FileImage },
       { href: '/admin/videos', label: 'Videos', icon: Video },
+      { href: '/admin/faqs', label: 'FAQs', icon: HelpCircle },        // ✅ Added
       { href: '/admin/ncert', label: 'NCERT', icon: BookOpen },
       { href: '/admin/competitive-exams', label: 'Exams', icon: GraduationCap },
       { href: '/admin/rojgar-samachar', label: 'Rojgar', icon: Newspaper },
@@ -64,14 +65,12 @@ export default function AdminSidebar({
   useEffect(() => {
     if (mobileOpen) {
       document.body.style.overflow = 'hidden'
-      // ✅ GAP 1 FIX: Focus first link for keyboard users
       const firstLink = drawerRef.current?.querySelector<HTMLElement>('a')
       requestAnimationFrame(() => firstLink?.focus())
     } else {
       document.body.style.overflow = ''
     }
     return () => {
-      // ✅ GAP 3 FIX: Always restore on unmount
       document.body.style.overflow = ''
     }
   }, [mobileOpen])
@@ -162,7 +161,6 @@ export default function AdminSidebar({
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      // ✅ GAP 2 FIX: aria-current for screen readers
                       aria-current={active ? 'page' : undefined}
                       className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                         active
