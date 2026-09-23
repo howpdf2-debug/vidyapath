@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireAdmin, isAdminApiError } from '@/lib/admin-api'
 import {
   pickAllowedFields,
@@ -7,7 +7,6 @@ import {
   toIntOrNull,
   toBoolOrNull,
   toTrimmedString,
-  isValidUuid,
   type FieldErrors,
 } from '@/lib/pick-fields'
 import {
@@ -21,6 +20,14 @@ import { checkRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+// ✅ Video/Chapter IDs are INTEGER (not UUID)
+function parseId(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10)
+  if (!Number.isInteger(n) || n < 1) return null
+  return n
+}
 
 const ALLOWED_VIDEO_FIELDS = [
   'class',
@@ -39,6 +46,9 @@ const ALLOWED_VIDEO_FIELDS = [
 
 const VALID_VIDEO_TYPES = ['lecture', 'revision', 'shorts', 'promo'] as const
 
+// ═══════════════════════════════════════════════════════
+// Validation
+// ═══════════════════════════════════════════════════════
 function validateVideoInput(
   picked: Record<string, unknown>,
   isCreate: boolean
@@ -73,10 +83,12 @@ function validateVideoInput(
     if (v !== null) data.chapter_num = v
   }
   if ('ncert_id' in picked) {
-    if (!isValidUuid(picked.ncert_id)) {
-      errors.ncert_id = 'ncert_id must be a valid UUID'
+    // ✅ INTEGER validation
+    const v = parseId(picked.ncert_id)
+    if (v === null) {
+      errors.ncert_id = 'ncert_id must be a positive integer'
     } else {
-      data.ncert_id = picked.ncert_id
+      data.ncert_id = v
     }
   }
   if ('description' in picked) {
@@ -96,7 +108,7 @@ function validateVideoInput(
       typeof picked.video_type !== 'string' ||
       !VALID_VIDEO_TYPES.includes(picked.video_type as any)
     ) {
-      errors.video_type = `video_type must be one of: ${VALID_VIDEO_TYPES.join(', ')}`
+      errors.video_type = `Must be one of: ${VALID_VIDEO_TYPES.join(', ')}`
     } else {
       data.video_type = picked.video_type
     }
@@ -121,7 +133,23 @@ function validateVideoInput(
 }
 
 // ═══════════════════════════════════════════════════════
-// GET
+// Cache invalidation
+// ═══════════════════════════════════════════════════════
+function invalidateVideoCaches(ncertId?: number | null) {
+  try {
+    revalidatePath('/ncert', 'layout')
+    revalidatePath('/notes', 'layout')
+    revalidatePath('/state-boards', 'layout')
+    revalidatePath('/admin/videos')
+    revalidateTag('chapter-videos')
+    if (ncertId) revalidateTag(`videos:${ncertId}`)
+  } catch (err) {
+    console.error('[admin/videos] revalidate failed:', err)
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// GET — List videos
 // ═══════════════════════════════════════════════════════
 export async function GET(request: NextRequest) {
   const ctx = await requireAdmin()
@@ -159,7 +187,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ═══════════════════════════════════════════════════════
-// POST
+// POST — Create video
 // ═══════════════════════════════════════════════════════
 export async function POST(request: NextRequest) {
   const ctx = await requireAdmin()
@@ -171,7 +199,7 @@ export async function POST(request: NextRequest) {
       max: 30,
     })
   ) {
-    return tooManyRequests('बहुत ज़्यादा requests। 1 मिनट बाद try करें।')
+    return tooManyRequests('बहुत ज़्यादा requests।')
   }
 
   try {
@@ -205,10 +233,7 @@ export async function POST(request: NextRequest) {
       return serverError(error.message)
     }
 
-    try {
-      revalidatePath('/ncert', 'layout')
-      revalidatePath('/admin/videos')
-    } catch {}
+    invalidateVideoCaches(payload.ncert_id as number | undefined)
 
     return created(data)
   } catch (err) {
@@ -218,7 +243,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ═══════════════════════════════════════════════════════
-// PUT
+// PUT — Update video
 // ═══════════════════════════════════════════════════════
 export async function PUT(request: NextRequest) {
   const ctx = await requireAdmin()
@@ -237,8 +262,13 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, ...rest } = body || {}
 
-    if (!isValidUuid(id)) {
-      return validationError({ id: 'Valid UUID required' }, 'Invalid video id')
+    // ✅ INTEGER validation
+    const videoId = parseId(id)
+    if (videoId === null) {
+      return validationError(
+        { id: 'Positive integer required' },
+        'Invalid video id'
+      )
     }
 
     const picked = pickAllowedFields(rest, ALLOWED_VIDEO_FIELDS)
@@ -252,10 +282,17 @@ export async function PUT(request: NextRequest) {
       return validationError({}, 'No valid fields to update')
     }
 
+    // Fetch ncert_id before update
+    const { data: existing } = await ctx.adminClient
+      .from('chapter_videos')
+      .select('ncert_id')
+      .eq('id', videoId)
+      .maybeSingle()
+
     const { data, error } = await ctx.adminClient
       .from('chapter_videos')
       .update(updates)
-      .eq('id', id)
+      .eq('id', videoId)
       .select()
 
     if (error) {
@@ -263,10 +300,9 @@ export async function PUT(request: NextRequest) {
       return serverError(error.message)
     }
 
-    try {
-      revalidatePath('/ncert', 'layout')
-      revalidatePath('/admin/videos')
-    } catch {}
+    invalidateVideoCaches(
+      existing?.ncert_id ?? (updates.ncert_id as number | undefined)
+    )
 
     return ok(data)
   } catch (err) {
@@ -276,7 +312,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // ═══════════════════════════════════════════════════════
-// DELETE
+// DELETE — Delete video
 // ═══════════════════════════════════════════════════════
 export async function DELETE(request: NextRequest) {
   const ctx = await requireAdmin()
@@ -293,26 +329,35 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+    const rawId = searchParams.get('id')
 
-    if (!isValidUuid(id)) {
-      return validationError({ id: 'Valid UUID required' }, 'Invalid video id')
+    // ✅ INTEGER validation
+    const videoId = parseId(rawId)
+    if (videoId === null) {
+      return validationError(
+        { id: 'Positive integer required' },
+        'Invalid video id'
+      )
     }
+
+    // Fetch ncert_id BEFORE delete
+    const { data: existing } = await ctx.adminClient
+      .from('chapter_videos')
+      .select('ncert_id')
+      .eq('id', videoId)
+      .maybeSingle()
 
     const { error } = await ctx.adminClient
       .from('chapter_videos')
       .delete()
-      .eq('id', id)
+      .eq('id', videoId)
 
     if (error) {
       console.error('[admin/videos DELETE]', error)
       return serverError(error.message)
     }
 
-    try {
-      revalidatePath('/ncert', 'layout')
-      revalidatePath('/admin/videos')
-    } catch {}
+    invalidateVideoCaches(existing?.ncert_id)
 
     return ok({ deleted: true })
   } catch (err) {
