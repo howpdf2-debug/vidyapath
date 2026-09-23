@@ -48,3 +48,33 @@ export interface VideoRow {
 }
 
 export type Lang = 'en' | 'hi'
+
+// ─────────────────────────────────────────────────────────────
+// P3.8: FAQ types (bilingual)
+// ─────────────────────────────────────────────────────────────
+
+export type FaqLang = 'en' | 'hi'
+
+export interface FaqRow {
+  id: number
+  ncert_id: number      // INTEGER (project rule)
+  lang: FaqLang         // ✅ Added
+  question: string
+  answer: string        // Pre-sanitized HTML
+  order_index: number
+  is_published: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface FaqPublic {
+  id: number            // ✅ Added
+  lang: FaqLang         // ✅ Added
+  question: string
+  answer: string        // Pre-sanitized HTML
+}
+
+export interface FaqBundle {
+  en: FaqPublic[]
+  hi: FaqPublic[]
+}

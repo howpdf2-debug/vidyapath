@@ -9,7 +9,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
-import { buildMetadata, SITE_URL } from '@/lib/seo'
+import { buildMetadata, SITE_URL, buildFaqPageSchema } from '@/lib/seo'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { BackButton } from '@/components/BackButton'
 import { VideoSection } from '@/components/VideoSection'
@@ -24,10 +24,12 @@ import { ChapterNavigation } from '@/components/notes/ChapterNavigation'
 import { isUserConfirmed } from '@/lib/auth'
 import { getServerSession } from '@/lib/auth-server'
 import { getPdfUrl } from '@/lib/pdf'
+import { FaqSection } from '@/components/FaqSection'
 import {
   getCachedChapterList,
   getCachedChapterNotes,
   getCachedChapterVideos,
+  getChapterFaqs,
 } from '@/lib/cached-queries'
 
 export const dynamic = 'force-dynamic'
@@ -74,7 +76,6 @@ export async function generateMetadata({
 
   let chapterTitle = `Chapter ${chapterNum}`
   if (!isNaN(classNum) && !isNaN(chapterNum)) {
-    // ✅ Uses cached query (no extra DB hit)
     const { data } = await getCachedChapterList(classNum, subjectName, lang)
     const current = data.find((c) => c.chapter_num === chapterNum)
     if (current?.chapter_title) chapterTitle = current.chapter_title
@@ -109,7 +110,7 @@ export default async function NotesChapterPage({
 }) {
   const classNum = parseInt(params.class, 10)
   const chapterNum = parseInt(params.chapter, 10)
-  const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
+  const lang: 'en' | 'hi' = searchParams.lang === 'hi' ? 'hi' : 'en'
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
@@ -150,8 +151,8 @@ export default async function NotesChapterPage({
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
 
-  // ✅ Cached data + live bookmark — parallel
-  const [notesRes, videosRes, bookmarkRes] = await Promise.all([
+  // ✅ Cached data + live bookmark + FAQ — parallel
+  const [notesRes, videosRes, bookmarkRes, faqs] = await Promise.all([
     getCachedChapterNotes(chapter.id),
     getCachedChapterVideos(chapter.id, lang),
     supabaseAuth && currentUserId
@@ -165,6 +166,10 @@ export default async function NotesChapterPage({
           data: { id: string } | null
           error: null
         }),
+    // ✅ P3.8: FAQ fetch — parallel, zero extra latency
+    chapter?.id
+      ? getChapterFaqs(chapter.id)
+      : Promise.resolve({ en: [], hi: [] }),
   ])
 
   if (notesRes.error) {
@@ -187,6 +192,7 @@ export default async function NotesChapterPage({
   const hasNotes = notes.length > 0
   const canonicalUrl = `${SITE_URL}/notes/${params.class}/${params.subject}/${params.chapter}`
 
+  // ✅ Base LearningResource JSON-LD (unchanged)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LearningResource',
@@ -197,6 +203,17 @@ export default async function NotesChapterPage({
     url: canonicalUrl,
   }
 
+  // ✅ P3.8: FAQPage schema — page-lang primary, other lang fallback
+  const primaryFaqs =
+    lang === 'hi'
+      ? faqs.hi.length > 0
+        ? faqs.hi
+        : faqs.en
+      : faqs.en.length > 0
+        ? faqs.en
+        : faqs.hi
+  const faqSchema = buildFaqPageSchema(primaryFaqs)
+
   return (
     <>
       <script
@@ -204,11 +221,24 @@ export default async function NotesChapterPage({
         dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
+      {/* ✅ P3.8: Separate FAQPage script (valid per schema.org — multiple scripts allowed) */}
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: safeJsonLd({
+              '@context': 'https://schema.org',
+              ...faqSchema,
+            }),
+          }}
+        />
+      )}
+
       <div className="space-y-6">
         <BackButton
           href={`/notes/${classNum}/${rawSubject}?lang=${lang}`}
           label="Back to chapters"
-          language={lang as 'en' | 'hi'}
+          language={lang}
         />
 
         <nav className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
@@ -324,6 +354,9 @@ export default async function NotesChapterPage({
             language={lang}
           />
         )}
+
+        {/* ✅ P3.8: FAQ Section — bilingual aware (page-lang primary) */}
+        <FaqSection faqs={faqs} lang={lang} />
 
         <CommentSection chapterId={chapter.id} />
 

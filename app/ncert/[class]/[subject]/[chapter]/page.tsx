@@ -4,7 +4,7 @@ import { Download, BookOpen } from 'lucide-react'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
 import { isUserConfirmed } from '@/lib/auth'
 import { getServerSession } from '@/lib/auth-server'
-import { buildMetadata, SITE_URL } from '@/lib/seo'
+import { buildMetadata, SITE_URL, buildFaqPageSchema } from '@/lib/seo'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { BookmarkButton } from '@/components/BookmarkButton'
 import { ShareButton } from '@/components/ShareButton'
@@ -18,6 +18,8 @@ import type { PreviewNote } from '@/lib/db-types'
 import { ChapterNavigation } from '@/components/notes/ChapterNavigation'
 import { ProgressButton } from './ProgressButton'
 import { getPdfUrl } from '@/lib/pdf'
+import { getChapterFaqs } from '@/lib/cached-queries'
+import { FaqSection } from '@/components/FaqSection'
 import {
   getCachedChapterList,
   getCachedNotesPreview,
@@ -41,6 +43,7 @@ function safePdfUrl(url: string | null | undefined): string | null {
   return url
 }
 
+// ✅ FIX B1: only ONE safeJsonLd — keep local (stricter: escapes < > &)
 function safeJsonLd(data: unknown): string {
   return JSON.stringify(data)
     .replace(/</g, '\\u003c')
@@ -99,7 +102,7 @@ export default async function ChapterPage({
 }) {
   const classNum = parseInt(params.class, 10)
   const chapterNum = parseInt(params.chapter, 10)
-  const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
+  const lang: 'en' | 'hi' = searchParams.lang === 'hi' ? 'hi' : 'en'
 
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
@@ -124,6 +127,7 @@ export default async function ChapterPage({
   const currentIdx = chapterList.findIndex((c) => c.chapter_num === chapterNum)
   if (currentIdx === -1) notFound()
 
+  // ✅ FIX B2: single chapter block — duplicate removed
   const chapter = chapterList[currentIdx]
   const totalChapters = chapterList.length
   const prevChapter = currentIdx > 0 ? chapterList[currentIdx - 1] : null
@@ -138,7 +142,7 @@ export default async function ChapterPage({
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
 
-  const [videosRes, bookmarkRes, notesPreviewRes] = await Promise.all([
+  const [videosRes, bookmarkRes, notesPreviewRes, faqs] = await Promise.all([
     getCachedChapterVideos(chapter.id, lang),
     supabaseAuth && currentUserId
       ? supabaseAuth
@@ -152,6 +156,10 @@ export default async function ChapterPage({
           error: null
         }),
     getCachedNotesPreview(chapter.id),
+    // ✅ FIX B3: FAQ fetch merged into Promise.all — parallel, no extra latency
+    chapter?.id
+      ? getChapterFaqs(chapter.id)
+      : Promise.resolve({ en: [], hi: [] }),
   ])
 
   if (videosRes.error) {
@@ -170,6 +178,7 @@ export default async function ChapterPage({
   const chapterTitle = chapter.chapter_title?.trim() || `Chapter ${chapterNum}`
   const notesHref = `/notes/${classNum}/${rawSubject}/${chapterNum}?lang=${lang}`
 
+  // ==================== JSON-LD ====================
   const jsonLd: Record<string, unknown>[] = [
     {
       '@context': 'https://schema.org',
@@ -201,6 +210,24 @@ export default async function ChapterPage({
     })
   }
 
+  // ✅ FIX B4/B5: FAQ schema — lang directly use, no pageLang. Schema injected.
+  const primaryFaqs =
+    lang === 'hi'
+      ? faqs.hi.length > 0
+        ? faqs.hi
+        : faqs.en
+      : faqs.en.length > 0
+        ? faqs.en
+        : faqs.hi
+
+  const faqSchema = buildFaqPageSchema(primaryFaqs)
+  if (faqSchema) {
+    jsonLd.push({
+      '@context': 'https://schema.org',
+      ...faqSchema,
+    })
+  }
+
   const rawPdfUrl =
     chapter.pdf_url || getPdfUrl(chapter.book_code, classNum, chapterNum)
   const pdfUrl = safePdfUrl(rawPdfUrl)
@@ -225,7 +252,7 @@ export default async function ChapterPage({
         <BackButton
           href={`/ncert/${classNum}/${rawSubject}?lang=${lang}`}
           label="Back to chapters"
-          language={lang as 'en' | 'hi'}
+          language={lang}
         />
 
         <Breadcrumb
@@ -311,6 +338,9 @@ export default async function ChapterPage({
             language={lang}
           />
         )}
+
+        {/* ✅ FIX B6: FAQ section rendered — after notes, before comments */}
+        <FaqSection faqs={faqs} lang={lang} />
 
         <CommentSection chapterId={chapter.id} />
 

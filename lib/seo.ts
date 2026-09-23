@@ -62,3 +62,54 @@ export function buildMetadata({
     },
   }
 }
+
+// ═══════════════════════════════════════════════════════
+// P3.8: FAQPage JSON-LD builder
+// ═══════════════════════════════════════════════════════
+
+function htmlToPlainTextFaq(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export interface FaqForSchema {
+  id?: number | string
+  lang?: 'en' | 'hi'
+  question: string
+  answer: string
+}
+
+/**
+ * Build FAQPage schema node from a list of FAQs.
+ * Returns null if list is empty (caller should skip node).
+ * - Strips HTML to plain text (Google needs text)
+ * - Trims to 500 chars per answer (Google recommendation)
+ * - Limits to 15 questions (avoid schema bloat)
+ */
+export function buildFaqPageSchema(
+  faqs: FaqForSchema[]
+): Record<string, unknown> | null {
+  if (!faqs || faqs.length === 0) return null
+
+  return {
+    '@type': 'FAQPage',
+    mainEntity: faqs.slice(0, 15).map((f) => ({
+      '@type': 'Question',
+      name: htmlToPlainTextFaq(f.question).slice(0, 300),
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: htmlToPlainTextFaq(f.answer).slice(0, 500),
+      },
+    })),
+  }
+}

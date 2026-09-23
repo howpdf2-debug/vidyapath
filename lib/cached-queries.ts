@@ -1,9 +1,16 @@
 // lib/cached-queries.ts
 // Global DB cache — deterministic keys, graceful fallback
-
 import { unstable_cache } from 'next/cache'
+import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@/lib/supabase'
-import type { ChapterRow, NoteRow, VideoRow } from '@/lib/db-types'
+import type {
+  ChapterRow,
+  NoteRow,
+  VideoRow,
+  FaqBundle,
+  FaqPublic,
+  FaqLang,
+} from '@/lib/db-types'
 
 function keyOf(prefix: string, params: Record<string, unknown>): string {
   const sorted = Object.keys(params)
@@ -147,3 +154,56 @@ export const getCachedChapterVideos = (ncertId: number, lang: string) =>
       tags: ['chapter-videos', `videos:${ncertId}`],
     }
   )()
+
+// ─────────────────────────────────────────────────────────────
+// P3.8: Cached FAQs — returns BOTH language sets in one query
+// Single query so no cache key collision. Caller decides which
+// language to show + fallback behavior.
+// ─────────────────────────────────────────────────────────────
+export const getChapterFaqs = unstable_cache(
+  async (ncertId: number): Promise<FaqBundle> => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) return { en: [], hi: [] }
+
+    const admin = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+
+    const { data, error } = await admin
+      .from('chapter_faqs')
+      .select('id, lang, question, answer')
+      .eq('ncert_id', ncertId)
+      .eq('is_published', true)
+      .order('order_index', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(40)
+
+    if (error || !data) return { en: [], hi: [] }
+
+    type Row = {
+      id: number
+      lang: string
+      question: string
+      answer: string
+    }
+
+    const en: FaqPublic[] = []
+    const hi: FaqPublic[] = []
+
+    for (const r of data as Row[]) {
+      const item: FaqPublic = {
+        id: r.id,
+        lang: r.lang as FaqLang,
+        question: r.question,
+        answer: r.answer,
+      }
+      if (r.lang === 'hi') hi.push(item)
+      else en.push(item)
+    }
+
+    return { en, hi }
+  },
+  ['chapter-faqs'],
+  { revalidate: 600, tags: ['faqs'] }
+)

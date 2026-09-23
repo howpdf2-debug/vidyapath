@@ -803,3 +803,21 @@ body {
     transform: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   P3.8: FAQ — print all answers
+   ═══════════════════════════════════════════════════════ */
+@media print {
+  details.faq-item > summary ~ * {
+    display: block !important;
+  }
+  details.faq-item[open] {
+    /* no special styling needed */
+  }
+  details.faq-item > summary {
+    cursor: default;
+  }
+  details.faq-item > summary svg {
+    display: none !important;
+  }
+}

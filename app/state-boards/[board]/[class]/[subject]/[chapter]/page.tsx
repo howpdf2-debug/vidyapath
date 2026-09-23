@@ -11,7 +11,7 @@ import {
   Languages,
 } from 'lucide-react'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
-import { buildMetadata, SITE_URL } from '@/lib/seo'
+import { buildMetadata, SITE_URL, buildFaqPageSchema } from '@/lib/seo'
 import {
   getBoard,
   getSubjectBySlug,
@@ -32,10 +32,12 @@ import type { PreviewNote } from '@/lib/db-types'
 import { ChapterNavigation } from '@/components/notes/ChapterNavigation'
 import { isUserConfirmed } from '@/lib/auth'
 import { getServerSession } from '@/lib/auth-server'
+import { FaqSection } from '@/components/FaqSection'
 import {
   getCachedChapterList,
   getCachedChapterNotes,
   getCachedChapterVideos,
+  getChapterFaqs,
 } from '@/lib/cached-queries'
 
 export const dynamic = 'force-dynamic'
@@ -153,8 +155,8 @@ export default async function ChapterPage({ params }: PageProps) {
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
 
-  // ✅ Cached notes + videos + live bookmark
-  const [notesRes, videosRes, bookmarkRes] = await Promise.all([
+  // ✅ Cached data + live bookmark + FAQ — all parallel
+  const [notesRes, videosRes, bookmarkRes, faqs] = await Promise.all([
     getCachedChapterNotes(chapter.id),
     getCachedChapterVideos(chapter.id, lang),
     supabaseAuth && currentUserId
@@ -168,6 +170,10 @@ export default async function ChapterPage({ params }: PageProps) {
           data: { id: string } | null
           error: null
         }),
+    // ✅ P3.8: FAQ fetch — parallel, zero extra latency
+    chapter?.id
+      ? getChapterFaqs(chapter.id)
+      : Promise.resolve({ en: [], hi: [] }),
   ])
 
   if (notesRes.error) {
@@ -201,7 +207,7 @@ export default async function ChapterPage({ params }: PageProps) {
     created_at: n.created_at,
   }))
 
-  // ✅ JSON-LD with video schema
+  // ✅ JSON-LD with video + FAQ schema
   const jsonLd: Record<string, unknown>[] = [
     {
       '@context': 'https://schema.org',
@@ -230,6 +236,16 @@ export default async function ChapterPage({ params }: PageProps) {
           uploadDate: new Date().toISOString(),
         },
       })),
+    })
+  }
+
+  // ✅ P3.8: FAQPage schema — Hindi primary, English fallback
+  const primaryFaqs = faqs.hi.length > 0 ? faqs.hi : faqs.en
+  const faqSchema = buildFaqPageSchema(primaryFaqs)
+  if (faqSchema) {
+    jsonLd.push({
+      '@context': 'https://schema.org',
+      ...faqSchema,
     })
   }
 
@@ -436,6 +452,9 @@ export default async function ChapterPage({ params }: PageProps) {
             language={lang}
           />
         )}
+
+        {/* ✅ P3.8: FAQ Section — Hindi primary, English auto-appended */}
+        <FaqSection faqs={faqs} lang="hi" />
 
         <CommentSection chapterId={chapter.id} />
 
