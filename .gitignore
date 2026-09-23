@@ -51,3 +51,7 @@ public/sw.js.map
 public/swe-worker-*.js.map
 public/workbox-*.js.map
 project-structure.txt
+lib/*.backup 
+lib/*.backup2 
+lib/*.backup4 
+lib/*.backup* 
