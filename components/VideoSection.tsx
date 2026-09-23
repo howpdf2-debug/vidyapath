@@ -33,7 +33,7 @@ interface VideoItem {
   video_type: 'lecture' | 'revision' | 'shorts' | 'promo'
   language: string
   order_index: number
-  is_featured?: boolean
+  is_featured?: boolean | null
 }
 
 interface VideoSectionProps {

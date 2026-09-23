@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { cache } from 'react'
 import { Download, BookOpen } from 'lucide-react'
-import { createServerClient } from '@/lib/supabase'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
 import { isUserConfirmed } from '@/lib/auth'
 import { getServerSession } from '@/lib/auth-server'
@@ -15,19 +13,19 @@ import { Breadcrumb } from '@/components/Breadcrumb'
 import { BackButton } from '@/components/BackButton'
 import { VideoSection } from '@/components/VideoSection'
 import { NotesHint } from '@/components/notes/NotesHint'
-import {
-  NotesPreviewCard,
-  type PreviewNote,
-} from '@/components/notes/NotesPreviewCard'
+import { NotesPreviewCard } from '@/components/notes/NotesPreviewCard'
+import type { PreviewNote } from '@/lib/db-types'
 import { ChapterNavigation } from '@/components/notes/ChapterNavigation'
 import { ProgressButton } from './ProgressButton'
 import { getPdfUrl } from '@/lib/pdf'
+import {
+  getCachedChapterList,
+  getCachedNotesPreview,
+  getCachedChapterVideos,
+} from '@/lib/cached-queries'
 
 export const dynamic = 'force-dynamic'
 
-// ═══════════════════════════════════════════════════════
-// Helpers
-// ═══════════════════════════════════════════════════════
 function safeDecode(value: string): string {
   try {
     return decodeURIComponent(value)
@@ -50,51 +48,6 @@ function safeJsonLd(data: unknown): string {
     .replace(/&/g, '\\u0026')
 }
 
-// ═══════════════════════════════════════════════════════
-// ✅ N2-2 FIX: React cache() — dedup between generateMetadata + page
-// ✅ N1-1, N1-2, N1-5 FIX: single query for entire chapter list
-// ═══════════════════════════════════════════════════════
-interface ChapterRow {
-  id: string
-  class: number
-  chapter_num: number
-  chapter_title: string | null
-  book_code: string | null
-  pdf_url: string | null
-  language: string
-}
-
-const getChapterList = cache(
-  async (
-    classNum: number,
-    subject: string,
-    lang: string
-  ): Promise<{ data: ChapterRow[]; error: string | null }> => {
-    try {
-      const supabase = createServerClient()
-      const { data, error } = await supabase
-        .from('ncert')
-        .select(
-          'id, class, chapter_num, chapter_title, book_code, pdf_url, language'
-        )
-        .eq('class', classNum)
-        .eq('subject', subject)
-        .eq('language', lang)
-        .order('chapter_num', { ascending: true })
-
-      if (error) {
-        console.error('[ncert-cache] query failed:', error.message)
-        return { data: [], error: error.message }
-      }
-      return { data: (data ?? []) as ChapterRow[], error: null }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      console.error('[ncert-cache] unexpected:', msg)
-      return { data: [], error: msg }
-    }
-  }
-)
-
 // ==================== SEO ====================
 export async function generateMetadata({
   params,
@@ -112,8 +65,7 @@ export async function generateMetadata({
 
   let chapterTitle = `Chapter ${chapterNum}`
   if (!isNaN(classNum) && !isNaN(chapterNum)) {
-    // ✅ Reuses cached query — no additional DB hit
-    const { data } = await getChapterList(classNum, subjectName, lang)
+    const { data } = await getCachedChapterList(classNum, subjectName, lang)
     const current = data.find((c) => c.chapter_num === chapterNum)
     if (current?.chapter_title) chapterTitle = current.chapter_title
   }
@@ -149,10 +101,8 @@ export default async function ChapterPage({
   const chapterNum = parseInt(params.chapter, 10)
   const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
-  // ✅ N2-4, N2-9 FIX: Type-safe numeric validation
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
-  // ✅ N2-3 FIX: normalized subject (matches DB)
   const subject = safeDecode(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -160,21 +110,18 @@ export default async function ChapterPage({
   const subjectName = subject
   const rawSubject = params.subject
 
-  // ✅ Single query (cached across metadata + page)
-  const { data: chapterList, error: chapterListErr } = await getChapterList(
+  const { data: chapterList, error: listErr } = await getCachedChapterList(
     classNum,
     subject,
     lang
   )
 
-  if (chapterListErr) {
-    console.error('[ncert-page] chapter list failed:', chapterListErr)
+  if (listErr) {
+    console.error('[ncert-page] list failed:', listErr)
     notFound()
   }
 
-  // ✅ N1-6 FIX: numeric-safe comparison
   const currentIdx = chapterList.findIndex((c) => c.chapter_num === chapterNum)
-  // ✅ N2-4, N2-5 FIX: safe fallback if not found
   if (currentIdx === -1) notFound()
 
   const chapter = chapterList[currentIdx]
@@ -183,7 +130,6 @@ export default async function ChapterPage({
   const nextChapter =
     currentIdx < chapterList.length - 1 ? chapterList[currentIdx + 1] : null
 
-  // ✅ N2-6 FIX: URL-safe hrefs
   const makeHref = (chNum: number) =>
     `/ncert/${classNum}/${rawSubject}/${chNum}?lang=${lang}`
 
@@ -192,21 +138,8 @@ export default async function ChapterPage({
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
 
-  const supabaseServer = createServerClient()
-
-  // ✅ N1-4 FIX: Promise.all — parallel
   const [videosRes, bookmarkRes, notesPreviewRes] = await Promise.all([
-    supabaseServer
-      .from('chapter_videos')
-      .select(
-        'id, youtube_id, title, description, thumbnail_url, duration_seconds, video_type, language, order_index, is_featured'
-      )
-      .eq('ncert_id', chapter.id)
-      .eq('is_active', true)
-      .eq('language', lang)
-      .order('is_featured', { ascending: false })
-      .order('order_index', { ascending: true }),
-
+    getCachedChapterVideos(chapter.id, lang),
     supabaseAuth && currentUserId
       ? supabaseAuth
           .from('bookmarks')
@@ -218,22 +151,14 @@ export default async function ChapterPage({
           data: { id: string } | null
           error: null
         }),
-
-    supabaseServer
-      .from('chapter_notes')
-      .select('id, topic, difficulty_level, pdf_url, created_at')
-      .eq('ncert_id', chapter.id)
-      .order('order_index', { ascending: true }),
+    getCachedNotesPreview(chapter.id),
   ])
 
   if (videosRes.error) {
-    console.error('[ncert-page] videos failed:', videosRes.error.message)
+    console.error('[ncert-page] videos failed:', videosRes.error)
   }
   if (notesPreviewRes.error) {
-    console.error(
-      '[ncert-page] notes preview failed:',
-      notesPreviewRes.error.message
-    )
+    console.error('[ncert-page] notes preview failed:', notesPreviewRes.error)
   }
 
   const videos = videosRes.data ?? []
@@ -308,15 +233,11 @@ export default async function ChapterPage({
             { label: 'Home', href: '/' },
             { label: 'NCERT', href: '/ncert' },
             { label: `Class ${classNum}`, href: `/ncert/${classNum}` },
-            {
-              label: subjectName,
-              href: `/ncert/${classNum}/${rawSubject}`,
-            },
+            { label: subjectName, href: `/ncert/${classNum}/${rawSubject}` },
             { label: `Chapter ${chapterNum}`, href: '#' },
           ]}
         />
 
-        {/* HERO HEADER */}
         <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-6 md:p-8 text-white">
           <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-white/5 rounded-full blur-3xl" />
@@ -346,7 +267,6 @@ export default async function ChapterPage({
           </div>
         </header>
 
-        {/* Chapter actions */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <BookmarkButton
             chapterId={chapter.id}
@@ -374,7 +294,6 @@ export default async function ChapterPage({
           </div>
         </div>
 
-        {/* Videos */}
         {videos.length > 0 && (
           <VideoSection
             chapterId={chapter.id}
@@ -385,7 +304,6 @@ export default async function ChapterPage({
           />
         )}
 
-        {/* Notes preview card */}
         {hasNotes && (
           <NotesPreviewCard
             href={notesHref}
@@ -396,7 +314,6 @@ export default async function ChapterPage({
 
         <CommentSection chapterId={chapter.id} />
 
-        {/* ✅ N1-3, N1-6, N1-7, N2-6 FIX: Chapter navigation */}
         <ChapterNavigation
           currentChapterNum={chapterNum}
           totalChapters={totalChapters}
@@ -424,6 +341,8 @@ export default async function ChapterPage({
           }
           language={lang}
           variant="emerald"
+          subjectHref={`/ncert/${classNum}/${rawSubject}?lang=${lang}`}
+          subjectName={subjectName}
         />
       </div>
     </>

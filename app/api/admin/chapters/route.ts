@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireAdmin, isAdminApiError } from '@/lib/admin-api'
 import {
   pickAllowedFields,
@@ -19,6 +19,14 @@ import { checkRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+// ✅ Chapter/Video IDs are INTEGER (not UUID)
+function parseId(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10)
+  if (!Number.isInteger(n) || n < 1) return null
+  return n
+}
 
 const ALLOWED_CHAPTER_FIELDS = [
   'class',
@@ -176,7 +184,9 @@ export async function POST(request: NextRequest) {
     try {
       revalidatePath('/ncert', 'layout')
       revalidatePath('/notes', 'layout')
-      revalidatePath('/admin/ncert')
+      revalidatePath('/state-boards', 'layout')
+  revalidatePath('/admin/ncert')
+  revalidateTag('ncert-chapters')
     } catch {}
 
     return created(data)
@@ -238,7 +248,9 @@ export async function PUT(request: NextRequest) {
     try {
       revalidatePath('/ncert', 'layout')
       revalidatePath('/notes', 'layout')
+      revalidatePath('/state-boards', 'layout')
       revalidatePath('/admin/ncert')
+      revalidateTag('ncert-chapters')
     } catch {}
 
     return ok(data)

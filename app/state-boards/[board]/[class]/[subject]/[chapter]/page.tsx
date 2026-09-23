@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { cache } from 'react'
 import {
   ArrowLeft,
   ChevronRight,
@@ -11,7 +10,6 @@ import {
   BookOpen,
   Languages,
 } from 'lucide-react'
-import { createServerClient } from '@/lib/supabase'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import {
@@ -26,15 +24,19 @@ import { CommentSection } from '@/components/CommentSection'
 import { BookmarkButton } from '@/components/BookmarkButton'
 import { ShareButton } from '@/components/ShareButton'
 import { ProgressButton } from '@/app/ncert/[class]/[subject]/[chapter]/ProgressButton'
-import { NoteCard, type Note } from '@/components/notes/NoteCard'
+import { NoteCard } from '@/components/notes/NoteCard'
+import type { Note } from '@/lib/db-types'
 import { NotesHint } from '@/components/notes/NotesHint'
-import {
-  NotesPreviewCard,
-  type PreviewNote,
-} from '@/components/notes/NotesPreviewCard'
+import { NotesPreviewCard } from '@/components/notes/NotesPreviewCard'
+import type { PreviewNote } from '@/lib/db-types'
 import { ChapterNavigation } from '@/components/notes/ChapterNavigation'
 import { isUserConfirmed } from '@/lib/auth'
 import { getServerSession } from '@/lib/auth-server'
+import {
+  getCachedChapterList,
+  getCachedChapterNotes,
+  getCachedChapterVideos,
+} from '@/lib/cached-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,55 +69,12 @@ function safeJsonLd(data: unknown): string {
     .replace(/&/g, '\\u0026')
 }
 
-// ═══════════════════════════════════════════════════════
-// ✅ SB9 FIX: cache() — dedup between metadata + page
-// ═══════════════════════════════════════════════════════
-interface ChapterRow {
-  id: string
-  chapter_num: number
-  chapter_title: string | null
-  book_code: string | null
-  pdf_url: string | null
-  language: string
-}
-
-const getChapterList = cache(
-  async (
-    classNum: number,
-    dbSubjectName: string
-  ): Promise<{ data: ChapterRow[]; error: string | null }> => {
-    try {
-      const supabase = createServerClient()
-      const { data, error } = await supabase
-        .from('ncert')
-        .select(
-          'id, chapter_num, chapter_title, book_code, pdf_url, language'
-        )
-        .eq('class', classNum)
-        .eq('subject', dbSubjectName)
-        .eq('language', 'hi')
-        .order('chapter_num', { ascending: true })
-
-      if (error) {
-        console.error('[sb-cache] query failed:', error.message)
-        return { data: [], error: error.message }
-      }
-      return { data: (data ?? []) as ChapterRow[], error: null }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      console.error('[sb-cache] unexpected:', msg)
-      return { data: [], error: msg }
-    }
-  }
-)
-
 // ==================== SEO ====================
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const board = getBoard(params.board)
   const subjectMeta = getSubjectBySlug(params.subject)
-  // ✅ SB10 FIX: numeric validation
   const classNum = parseInt(params.class, 10)
   const chapterNum = parseInt(params.chapter, 10)
 
@@ -127,7 +86,7 @@ export async function generateMetadata({
   if (!dbSubjectName) return {}
 
   let chapterTitle = `अध्याय ${chapterNum}`
-  const { data } = await getChapterList(classNum, dbSubjectName)
+  const { data } = await getCachedChapterList(classNum, dbSubjectName, 'hi')
   const current = data.find((c) => c.chapter_num === chapterNum)
   if (current?.chapter_title) chapterTitle = current.chapter_title
 
@@ -138,7 +97,6 @@ export async function generateMetadata({
     path,
   })
 
-  // ✅ SB20 FIX: alternates (Hindi only for state boards)
   return {
     ...baseMeta,
     alternates: {
@@ -163,20 +121,21 @@ export default async function ChapterPage({ params }: PageProps) {
   const dbSubjectName = getDbSubjectName(params.subject)
   if (!dbSubjectName) notFound()
 
-  // ✅ SB9, SB11 FIX: cached list + error handling
-  const { data: chapterList, error: listErr } = await getChapterList(
+  const lang = 'hi' as const
+
+  // ✅ Cached chapter list
+  const { data: chapterList, error: listErr } = await getCachedChapterList(
     classNum,
-    dbSubjectName
+    dbSubjectName,
+    lang
   )
 
-  if (listErr || chapterList.length === 0) {
-    console.error('[sb-page] chapter list failed:', listErr)
+  if (listErr) {
+    console.error('[sb-page] list failed:', listErr)
     notFound()
   }
 
-  const currentIdx = chapterList.findIndex(
-    (c) => c.chapter_num === chapterNum
-  )
+  const currentIdx = chapterList.findIndex((c) => c.chapter_num === chapterNum)
   if (currentIdx === -1) notFound()
 
   const chapter = chapterList[currentIdx]
@@ -188,33 +147,16 @@ export default async function ChapterPage({ params }: PageProps) {
   const makeHref = (chNum: number) =>
     `/state-boards/${params.board}/${classNum}/${params.subject}/${chNum}`
 
-  // Session + auth
+  // ✅ Session + bookmark (live)
   const session = await getServerSession()
   const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
-  const supabase = createServerClient()
 
-  // ✅ Parallel queries
-  // ✅ SB14 FIX: Notes — no language filter (chapter already scoped)
+  // ✅ Cached notes + videos + live bookmark
   const [notesRes, videosRes, bookmarkRes] = await Promise.all([
-    supabase
-      .from('chapter_notes')
-      .select('*')
-      .eq('ncert_id', chapter.id)
-      .order('order_index', { ascending: true }),
-
-    supabase
-      .from('chapter_videos')
-      .select(
-        'id, youtube_id, title, description, thumbnail_url, duration_seconds, video_type, language, order_index, is_featured'
-      )
-      .eq('ncert_id', chapter.id)
-      .eq('is_active', true)
-      .eq('language', 'hi')
-      .order('is_featured', { ascending: false })
-      .order('order_index', { ascending: true }),
-
+    getCachedChapterNotes(chapter.id),
+    getCachedChapterVideos(chapter.id, lang),
     supabaseAuth && currentUserId
       ? supabaseAuth
           .from('bookmarks')
@@ -229,26 +171,28 @@ export default async function ChapterPage({ params }: PageProps) {
   ])
 
   if (notesRes.error) {
-    console.error('[sb-page] notes failed:', notesRes.error.message)
+    console.error('[sb-page] notes failed:', notesRes.error)
   }
   if (videosRes.error) {
-    console.error('[sb-page] videos failed:', videosRes.error.message)
+    console.error('[sb-page] videos failed:', videosRes.error)
   }
 
-  // ✅ SB6 FIX: proper typing
   const notes = (notesRes.data ?? []) as Note[]
   const videos = videosRes.data ?? []
   const isBookmarked = !!bookmarkRes.data
 
-  // ✅ SB18 FIX: safe PDF url
   const rawPdfUrl =
     chapter.pdf_url || getPdfUrl(chapter.book_code, classNum, chapterNum)
   const pdfUrl = safePdfUrl(rawPdfUrl)
 
-  const chapterTitle = chapter.chapter_title?.trim() || `अध्याय ${chapterNum}`
-  const canonicalUrl = `${SITE_URL}/state-boards/${params.board}/${params.class}/${params.subject}/${params.chapter}`
+  const chapterTitle =
+    chapter.chapter_title?.trim() || `अध्याय ${chapterNum}`
 
   const hasNotes = notes.length > 0
+  const notesHref = makeHref(chapterNum)
+  const canonicalUrl = `${SITE_URL}/state-boards/${params.board}/${params.class}/${params.subject}/${params.chapter}`
+
+  // ✅ Preview notes (for NotesPreviewCard)
   const notesPreview: PreviewNote[] = notes.slice(0, 8).map((n) => ({
     id: n.id,
     topic: n.topic,
@@ -257,9 +201,7 @@ export default async function ChapterPage({ params }: PageProps) {
     created_at: n.created_at,
   }))
 
-  const notesHref = makeHref(chapterNum)
-
-  // ✅ SB4, SB17 FIX: safe JSON-LD + video schema
+  // ✅ JSON-LD with video schema
   const jsonLd: Record<string, unknown>[] = [
     {
       '@context': 'https://schema.org',
@@ -299,12 +241,12 @@ export default async function ChapterPage({ params }: PageProps) {
       />
 
       <div className="space-y-6 pb-16">
-        {/* ✅ SB8 FIX: NotesHint (state-boards variant) */}
+        {/* ✅ Notes hint */}
         {hasNotes && (
           <NotesHint
             href={notesHref}
             count={notes.length}
-            language="hi"
+            language={lang}
             chapterId={chapter.id}
           />
         )}
@@ -405,7 +347,7 @@ export default async function ChapterPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* ✅ SB23 FIX: Actions row — horizontal scroll on mobile */}
+        {/* Chapter actions */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <BookmarkButton
             chapterId={chapter.id}
@@ -417,7 +359,6 @@ export default async function ChapterPage({ params }: PageProps) {
               href={pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
-              /* ✅ SB3 FIX: indigo gradient (consistent) */
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition text-sm font-medium flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
               aria-label={`बुक PDF — ${chapterTitle}`}
             >
@@ -434,18 +375,18 @@ export default async function ChapterPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* ✅ Videos — conditional */}
+        {/* Videos — conditional */}
         {videos.length > 0 && (
           <VideoSection
             chapterId={chapter.id}
             chapterTitle={chapterTitle}
             videos={videos}
-            language="hi"
+            language={lang}
             isLoggedIn={isLoggedIn}
           />
         )}
 
-        {/* ✅ SB1, SB2 FIX: Notes via NoteCard (not NotesContent) */}
+        {/* Notes */}
         <section aria-labelledby="notes-heading" className="space-y-5">
           <h2 id="notes-heading" className="sr-only">
             नोट्स
@@ -460,14 +401,19 @@ export default async function ChapterPage({ params }: PageProps) {
                 />
                 पाठ नोट्स
               </div>
+
               {notes.map((note) => (
-                <NoteCard key={note.id} note={note} />
+                <NoteCard key={note.id} note={note} language="hi" />
               ))}
             </>
           ) : (
             <div className="surface-card text-center py-16 px-6">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-slate-100 dark:bg-slate-800 mb-4">
-                <span className="text-4xl" role="img" aria-label="Notes coming soon">
+                <span
+                  className="text-4xl"
+                  role="img"
+                  aria-label="Notes coming soon"
+                >
                   📝
                 </span>
               </div>
@@ -482,9 +428,18 @@ export default async function ChapterPage({ params }: PageProps) {
           )}
         </section>
 
+        {/* Notes preview card (only when notes exist) */}
+        {hasNotes && (
+          <NotesPreviewCard
+            href={notesHref}
+            notes={notesPreview}
+            language={lang}
+          />
+        )}
+
         <CommentSection chapterId={chapter.id} />
 
-        {/* ✅ SB7 FIX: ChapterNavigation (teal variant) */}
+        {/* Chapter navigation (teal variant) */}
         <ChapterNavigation
           currentChapterNum={chapterNum}
           totalChapters={totalChapters}
@@ -510,7 +465,7 @@ export default async function ChapterPage({ params }: PageProps) {
                 }
               : null
           }
-          language="hi"
+          language={lang}
           variant="teal"
           subjectHref={`/state-boards/${board.slug}/${classNum}/${params.subject}`}
           subjectName={subjectMeta.name_hi}

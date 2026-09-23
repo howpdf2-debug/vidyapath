@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { cache } from 'react'
 import {
   FileText,
   Download,
@@ -9,7 +8,6 @@ import {
   Home,
   BookOpen,
 } from 'lucide-react'
-import { createServerClient } from '@/lib/supabase'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import { LanguageToggle } from '@/components/LanguageToggle'
@@ -20,11 +18,17 @@ import { BookmarkButton } from '@/components/BookmarkButton'
 import { ShareButton } from '@/components/ShareButton'
 import { CommentSection } from '@/components/CommentSection'
 import { ProgressButton } from '@/app/ncert/[class]/[subject]/[chapter]/ProgressButton'
-import { NoteCard, type Note } from '@/components/notes/NoteCard'
+import { NoteCard } from '@/components/notes/NoteCard'
+import type { Note } from '@/lib/db-types'
 import { ChapterNavigation } from '@/components/notes/ChapterNavigation'
 import { isUserConfirmed } from '@/lib/auth'
 import { getServerSession } from '@/lib/auth-server'
 import { getPdfUrl } from '@/lib/pdf'
+import {
+  getCachedChapterList,
+  getCachedChapterNotes,
+  getCachedChapterVideos,
+} from '@/lib/cached-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,50 +57,6 @@ function safeJsonLd(data: unknown): string {
     .replace(/&/g, '\\u0026')
 }
 
-// ═══════════════════════════════════════════════════════
-// ✅ N2, N3 FIX: React cache() — dedup metadata + page
-// ═══════════════════════════════════════════════════════
-interface ChapterRow {
-  id: string
-  class: number
-  chapter_num: number
-  chapter_title: string | null
-  book_code: string | null
-  pdf_url: string | null
-  language: string
-}
-
-const getChapterList = cache(
-  async (
-    classNum: number,
-    subject: string,
-    lang: string
-  ): Promise<{ data: ChapterRow[]; error: string | null }> => {
-    try {
-      const supabase = createServerClient()
-      const { data, error } = await supabase
-        .from('ncert')
-        .select(
-          'id, class, chapter_num, chapter_title, book_code, pdf_url, language'
-        )
-        .eq('class', classNum)
-        .eq('subject', subject)
-        .eq('language', lang)
-        .order('chapter_num', { ascending: true })
-
-      if (error) {
-        console.error('[notes-cache] query failed:', error.message)
-        return { data: [], error: error.message }
-      }
-      return { data: (data ?? []) as ChapterRow[], error: null }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      console.error('[notes-cache] unexpected:', msg)
-      return { data: [], error: msg }
-    }
-  }
-)
-
 // ==================== SEO ====================
 export async function generateMetadata({
   params,
@@ -114,7 +74,8 @@ export async function generateMetadata({
 
   let chapterTitle = `Chapter ${chapterNum}`
   if (!isNaN(classNum) && !isNaN(chapterNum)) {
-    const { data } = await getChapterList(classNum, subjectName, lang)
+    // ✅ Uses cached query (no extra DB hit)
+    const { data } = await getCachedChapterList(classNum, subjectName, lang)
     const current = data.find((c) => c.chapter_num === chapterNum)
     if (current?.chapter_title) chapterTitle = current.chapter_title
   }
@@ -150,10 +111,8 @@ export default async function NotesChapterPage({
   const chapterNum = parseInt(params.chapter, 10)
   const lang = searchParams.lang === 'hi' ? 'hi' : 'en'
 
-  // ✅ N4, N19 FIX: numeric validation
   if (isNaN(classNum) || isNaN(chapterNum)) notFound()
 
-  // ✅ N5, N16 FIX: normalized subject (matches DB)
   const subject = safeDecode(params.subject)
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -161,8 +120,8 @@ export default async function NotesChapterPage({
   const subjectName = subject
   const rawSubject = params.subject
 
-  // ✅ N2, N3 FIX: single cached query
-  const { data: chapterList, error: listErr } = await getChapterList(
+  // ✅ Cached chapter list
+  const { data: chapterList, error: listErr } = await getCachedChapterList(
     classNum,
     subject,
     lang
@@ -173,10 +132,7 @@ export default async function NotesChapterPage({
     notFound()
   }
 
-  const currentIdx = chapterList.findIndex(
-    (c) => c.chapter_num === chapterNum
-  )
-
+  const currentIdx = chapterList.findIndex((c) => c.chapter_num === chapterNum)
   if (currentIdx === -1) notFound()
 
   const chapter = chapterList[currentIdx]
@@ -185,36 +141,19 @@ export default async function NotesChapterPage({
   const nextChapter =
     currentIdx < chapterList.length - 1 ? chapterList[currentIdx + 1] : null
 
-  // ✅ N6 FIX: subjectHref points to Notes, not NCERT
   const makeHref = (chNum: number) =>
     `/notes/${classNum}/${rawSubject}/${chNum}?lang=${lang}`
 
+  // ✅ Session + bookmark (NOT cached — per-user)
   const session = await getServerSession()
   const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
 
-  const supabase = createServerClient()
-
-  // Parallel queries
+  // ✅ Cached data + live bookmark — parallel
   const [notesRes, videosRes, bookmarkRes] = await Promise.all([
-    supabase
-      .from('chapter_notes')
-      .select('*')
-      .eq('ncert_id', chapter.id)
-      .order('order_index', { ascending: true }),
-
-    supabase
-      .from('chapter_videos')
-      .select(
-        'id, youtube_id, title, description, thumbnail_url, duration_seconds, video_type, language, order_index, is_featured'
-      )
-      .eq('ncert_id', chapter.id)
-      .eq('is_active', true)
-      .eq('language', lang)
-      .order('is_featured', { ascending: false })
-      .order('order_index', { ascending: true }),
-
+    getCachedChapterNotes(chapter.id),
+    getCachedChapterVideos(chapter.id, lang),
     supabaseAuth && currentUserId
       ? supabaseAuth
           .from('bookmarks')
@@ -229,10 +168,10 @@ export default async function NotesChapterPage({
   ])
 
   if (notesRes.error) {
-    console.error('[notes-page] notes failed:', notesRes.error.message)
+    console.error('[notes-page] notes failed:', notesRes.error)
   }
   if (videosRes.error) {
-    console.error('[notes-page] videos failed:', videosRes.error.message)
+    console.error('[notes-page] videos failed:', videosRes.error)
   }
 
   const notes = (notesRes.data ?? []) as Note[]
@@ -241,7 +180,6 @@ export default async function NotesChapterPage({
 
   const chapterTitle = chapter.chapter_title?.trim() || `Chapter ${chapterNum}`
 
-  // ✅ N18 FIX: safe PDF URL
   const rawPdfUrl =
     chapter.pdf_url || getPdfUrl(chapter.book_code, classNum, chapterNum)
   const pdfUrl = safePdfUrl(rawPdfUrl)
@@ -249,7 +187,6 @@ export default async function NotesChapterPage({
   const hasNotes = notes.length > 0
   const canonicalUrl = `${SITE_URL}/notes/${params.class}/${params.subject}/${params.chapter}`
 
-  // ✅ N10 FIX: JSON-LD
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LearningResource',
@@ -274,12 +211,8 @@ export default async function NotesChapterPage({
           language={lang as 'en' | 'hi'}
         />
 
-        {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
-          <Link
-            href="/"
-            className="hover:text-indigo-600 flex items-center gap-1"
-          >
+          <Link href="/" className="hover:text-indigo-600 flex items-center gap-1">
             <Home className="w-3.5 h-3.5" /> Home
           </Link>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -287,10 +220,7 @@ export default async function NotesChapterPage({
             Notes
           </Link>
           <ChevronRight className="w-3.5 h-3.5" />
-          <Link
-            href={`/notes/${classNum}`}
-            className="hover:text-indigo-600"
-          >
+          <Link href={`/notes/${classNum}`} className="hover:text-indigo-600">
             Class {classNum}
           </Link>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -306,7 +236,6 @@ export default async function NotesChapterPage({
           </span>
         </nav>
 
-        {/* Header */}
         <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 p-6 md:p-8 text-white">
           <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
@@ -333,9 +262,6 @@ export default async function NotesChapterPage({
           </div>
         </header>
 
-        {/* ✅ N1 FIX: Cross-link REMOVED (user requirement) */}
-
-        {/* ✅ N20 FIX: Actions row — horizontal scroll */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <BookmarkButton
             chapterId={chapter.id}
@@ -347,7 +273,6 @@ export default async function NotesChapterPage({
               href={pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
-              /* ✅ N8 FIX: indigo gradient (consistent with NCERT) */
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition text-sm font-medium flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
               aria-label={`NCERT Book PDF — ${chapterTitle}`}
             >
@@ -364,7 +289,6 @@ export default async function NotesChapterPage({
           </div>
         </div>
 
-        {/* ✅ N9 FIX: Videos — only if exist */}
         {videos.length > 0 && (
           <VideoSection
             chapterId={chapter.id}
@@ -375,7 +299,6 @@ export default async function NotesChapterPage({
           />
         )}
 
-        {/* Notes */}
         {hasNotes ? (
           <div className="space-y-6">
             <div className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
@@ -387,7 +310,7 @@ export default async function NotesChapterPage({
             </div>
 
             {notes.map((note) => (
-              <NoteCard key={note.id} note={note} />
+              <NoteCard key={note.id} note={note} language={lang} />
             ))}
           </div>
         ) : (
@@ -404,8 +327,6 @@ export default async function NotesChapterPage({
 
         <CommentSection chapterId={chapter.id} />
 
-        {/* ✅ N11 FIX: ChapterNavigation — works for both notes + fallback */}
-        {/* ✅ N6 FIX: subjectHref → /notes/... (not /ncert/) */}
         <ChapterNavigation
           currentChapterNum={chapterNum}
           totalChapters={totalChapters}

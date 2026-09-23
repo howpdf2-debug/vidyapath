@@ -8,7 +8,7 @@ interface NotesHintProps {
   href: string
   count: number
   language: 'en' | 'hi'
-  chapterId: string
+  chapterId: string | number
 }
 
 const DISMISS_DAYS = 7

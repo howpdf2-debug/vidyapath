@@ -1,20 +1,6 @@
 import Link from 'next/link'
-import {
-  BookOpen,
-  ArrowRight,
-  Sparkles,
-  FileImage,
-  Clock,
-  Calendar,
-} from 'lucide-react'
-
-export interface PreviewNote {
-  id: string
-  topic: string
-  difficulty_level: string | null
-  pdf_url: string | null
-  created_at?: string
-}
+import { BookOpen, ArrowRight, Sparkles, FileImage, Clock } from 'lucide-react'
+import type { PreviewNote } from '@/lib/db-types'
 
 interface NotesPreviewCardProps {
   href: string
@@ -22,28 +8,22 @@ interface NotesPreviewCardProps {
   language: 'en' | 'hi'
 }
 
-// ✅ N7 FIX: reading time estimate
-function estimateReadTime(count: number): string {
+function estimateReadTime(count: number, lang: 'en' | 'hi'): string {
   const mins = Math.max(3, count * 4)
-  return `${mins} min`
+  return lang === 'hi' ? `${mins} मिनट` : `${mins} min`
 }
 
-// ✅ N8 FIX: new badge if recent
 function isRecent(iso: string | undefined): boolean {
   if (!iso) return false
   try {
     const t = new Date(iso).getTime()
     if (isNaN(t)) return false
-    return Date.now() - t < 7 * 24 * 60 * 60 * 1000
+    const diff = Date.now() - t
+    if (diff < 0) return false
+    return diff < 7 * 24 * 60 * 60 * 1000
   } catch {
     return false
   }
-}
-
-const DIFFICULTY_CLS: Record<string, string> = {
-  easy: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400',
-  medium: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400',
-  hard: 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400',
 }
 
 export function NotesPreviewCard({
@@ -58,18 +38,17 @@ export function NotesPreviewCard({
   const visibleNotes = notes.slice(0, 4)
   const remaining = total - visibleNotes.length
   const isAnyNew = notes.some((n) => isRecent(n.created_at))
-  const readTime = estimateReadTime(total)
+  const readTime = estimateReadTime(total, language)
 
   const t =
     language === 'hi'
       ? {
           title: 'इस चैप्टर के Detailed Notes',
-          subtitle:
-            'Admin द्वारा तैयार — diagrams, examples, PDFs सब एक जगह',
+          subtitle: 'Admin द्वारा तैयार — diagrams, examples, PDFs सब एक जगह',
           cta: 'सभी Notes पढ़ें',
           pdfBadge: 'PDF उपलब्ध',
           newBadge: 'नया',
-          countLabel: (n: number) => `${n} topic${n > 1 ? 's' : ''}`,
+          countLabel: (n: number) => `${n} topic`,
           moreLabel: (n: number) => `+${n} और`,
         }
       : {
@@ -85,7 +64,6 @@ export function NotesPreviewCard({
 
   return (
     <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-indigo-300 dark:border-indigo-800/60 bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-pink-50/60 dark:from-indigo-950/20 dark:via-purple-950/10 dark:to-pink-950/20 p-5 sm:p-6">
-      {/* Decorative glow */}
       <div
         className="absolute -top-12 -right-12 w-40 h-40 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"
         aria-hidden="true"
@@ -96,7 +74,6 @@ export function NotesPreviewCard({
       />
 
       <div className="relative">
-        {/* Header */}
         <div className="flex items-start gap-3 mb-4">
           <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
             <BookOpen className="w-5 h-5 text-white" aria-hidden="true" />
@@ -108,7 +85,6 @@ export function NotesPreviewCard({
                 className="w-4 h-4 text-indigo-500 flex-shrink-0"
                 aria-hidden="true"
               />
-              {/* ✅ N8 FIX: New badge */}
               {isAnyNew && (
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
                   {t.newBadge}
@@ -121,12 +97,12 @@ export function NotesPreviewCard({
           </div>
         </div>
 
-        {/* ✅ N5 FIX: Topic chips with difficulty indicator */}
         <div className="flex flex-wrap gap-2 mb-4">
           {visibleNotes.map((n) => (
             <span
               key={n.id}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-sm max-w-full"
+              title={n.topic}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
@@ -138,7 +114,6 @@ export function NotesPreviewCard({
                 }`}
                 aria-hidden="true"
               />
-              {/* ✅ N6 FIX: better responsive max-width */}
               <span className="truncate max-w-[140px] sm:max-w-[200px]">
                 {n.topic}
               </span>
@@ -157,7 +132,6 @@ export function NotesPreviewCard({
           )}
         </div>
 
-        {/* ✅ N7 FIX: Meta line with reading time + count + PDF */}
         <div className="flex flex-wrap items-center gap-3 mb-5 text-xs text-slate-500 dark:text-slate-400">
           <span className="inline-flex items-center gap-1 font-semibold">
             <BookOpen className="w-3 h-3" aria-hidden="true" />
@@ -175,14 +149,13 @@ export function NotesPreviewCard({
           )}
         </div>
 
-        {/* CTA */}
         <Link
           href={href}
-          className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-indigo-500/30 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+          className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-indigo-500/30 motion-safe:transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
         >
           {t.cta}
           <ArrowRight
-            className="w-4 h-4 group-hover:translate-x-0.5 transition-transform"
+            className="w-4 h-4 group-hover:translate-x-0.5 motion-safe:transition-transform"
             aria-hidden="true"
           />
         </Link>
