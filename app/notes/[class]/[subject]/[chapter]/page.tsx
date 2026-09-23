@@ -168,8 +168,8 @@ export default async function NotesChapterPage({
         }),
     // ✅ P3.8: FAQ fetch — parallel, zero extra latency
     chapter?.id
-      ? getChapterFaqs(chapter.id)
-      : Promise.resolve({ en: [], hi: [] }),
+  ? getChapterFaqs(chapter.id, classNum, subjectName, chapterNum)
+  : Promise.resolve({ en: [], hi: [] }),
   ])
 
   if (notesRes.error) {

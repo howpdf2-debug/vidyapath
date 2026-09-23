@@ -158,8 +158,8 @@ export default async function ChapterPage({
     getCachedNotesPreview(chapter.id),
     // ✅ FIX B3: FAQ fetch merged into Promise.all — parallel, no extra latency
     chapter?.id
-      ? getChapterFaqs(chapter.id)
-      : Promise.resolve({ en: [], hi: [] }),
+  ? getChapterFaqs(chapter.id, classNum, subjectName, chapterNum)
+  : Promise.resolve({ en: [], hi: [] }),
   ])
 
   if (videosRes.error) {

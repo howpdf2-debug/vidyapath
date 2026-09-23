@@ -155,55 +155,85 @@ export const getCachedChapterVideos = (ncertId: number, lang: string) =>
     }
   )()
 
+
 // ─────────────────────────────────────────────────────────────
-// P3.8: Cached FAQs — returns BOTH language sets in one query
-// Single query so no cache key collision. Caller decides which
-// language to show + fallback behavior.
+// P3.8 FINAL: Cross-language FAQ fetch
+// Given a chapter's ncert_id, finds ALL language variants
+// (same class + subject + chapter_num) and fetches FAQs from all.
+// Result: {en, hi} — component picks primary based on page lang.
 // ─────────────────────────────────────────────────────────────
-export const getChapterFaqs = unstable_cache(
-  async (ncertId: number): Promise<FaqBundle> => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!url || !key) return { en: [], hi: [] }
+export const getChapterFaqs = (
+  ncertId: number,
+  classNum: number,
+  subject: string,
+  chapterNum: number
+) =>
+  unstable_cache(
+    async (): Promise<FaqBundle> => {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (!url || !key) return { en: [], hi: [] }
 
-    const admin = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    })
+      const admin = createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
 
-    const { data, error } = await admin
-      .from('chapter_faqs')
-      .select('id, lang, question, answer')
-      .eq('ncert_id', ncertId)
-      .eq('is_published', true)
-      .order('order_index', { ascending: true })
-      .order('id', { ascending: true })
-      .limit(40)
+      // Step 1: find all language variants of this chapter
+      const { data: variants, error: varErr } = await admin
+        .from('ncert')
+        .select('id')
+        .eq('class', classNum)
+        .eq('subject', subject)
+        .eq('chapter_num', chapterNum)
 
-    if (error || !data) return { en: [], hi: [] }
+      if (varErr) return { en: [], hi: [] }
 
-    type Row = {
-      id: number
-      lang: string
-      question: string
-      answer: string
-    }
+      const ids: number[] = (variants ?? []).map((v) => v.id)
+      if (!ids.includes(ncertId)) ids.push(ncertId)
+      if (ids.length === 0) return { en: [], hi: [] }
 
-    const en: FaqPublic[] = []
-    const hi: FaqPublic[] = []
+      // Step 2: fetch FAQs across all variants
+      const { data, error } = await admin
+        .from('chapter_faqs')
+        .select('id, lang, question, answer')
+        .in('ncert_id', ids)
+        .eq('is_published', true)
+        .order('order_index', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(60)
 
-    for (const r of data as Row[]) {
-      const item: FaqPublic = {
-        id: r.id,
-        lang: r.lang as FaqLang,
-        question: r.question,
-        answer: r.answer,
+      if (error || !data) return { en: [], hi: [] }
+
+      type Row = {
+        id: number
+        lang: string
+        question: string
+        answer: string
       }
-      if (r.lang === 'hi') hi.push(item)
-      else en.push(item)
-    }
 
-    return { en, hi }
-  },
-  ['chapter-faqs'],
-  { revalidate: 600, tags: ['faqs'] }
-)
+      const en: FaqPublic[] = []
+      const hi: FaqPublic[] = []
+
+      // Dedupe by (lang + question) — protects against accidental dupes
+      const seen = new Set<string>()
+
+      for (const r of data as Row[]) {
+        const dedupeKey = `${r.lang}::${r.question.trim().toLowerCase()}`
+        if (seen.has(dedupeKey)) continue
+        seen.add(dedupeKey)
+
+        const item: FaqPublic = {
+          id: r.id,
+          lang: r.lang as FaqLang,
+          question: r.question,
+          answer: r.answer,
+        }
+        if (r.lang === 'hi') hi.push(item)
+        else en.push(item)
+      }
+
+      return { en, hi }
+    },
+    [keyOf('chapter-faqs', { ncertId, classNum, subject, chapterNum })],
+    { revalidate: 600, tags: ['faqs'] }
+  )()
