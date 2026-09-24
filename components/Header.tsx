@@ -11,7 +11,6 @@ import {
   Sun,
   Moon,
   LogOut,
-  User as UserIcon,
   MapPin,
   ChevronDown,
   Briefcase,
@@ -20,6 +19,8 @@ import {
 import { useTheme } from 'next-themes'
 import { SearchBar } from './SearchBar'
 import { supabase } from '@/lib/supabase'
+import { UserAvatar } from '@/components/UserAvatar'
+import { getStyle } from '@/lib/avatar'
 
 const stateBoards = [
   { name: 'UP Board', slug: 'up', color: 'bg-orange-500' },
@@ -90,7 +91,7 @@ function HeaderContent() {
     }
   }, [isMenuOpen])
 
-  // ✅ P2 GAP: focus trap inside mobile drawer
+  // Focus trap inside mobile drawer
   useEffect(() => {
     if (!isMenuOpen) return
     const drawer = drawerRef.current
@@ -104,7 +105,6 @@ function HeaderContent() {
     const first = focusables[0]
     const last = focusables[focusables.length - 1]
 
-    // ✅ FIX: auto-focus first Link/Button (skip input → no mobile keyboard pop-up)
     const autoFocusTarget =
       Array.from(focusables).find(
         (el) => el.tagName === 'A' || el.tagName === 'BUTTON'
@@ -185,6 +185,19 @@ function HeaderContent() {
     setIsMenuOpen(false)
     hamburgerRef.current?.focus()
   }
+
+  // ✅ Avatar prefs from user_metadata (Phase 3 picker will set these)
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
+  const avatarStyle = getStyle(
+    typeof meta.avatar_style === 'string' ? meta.avatar_style : null
+  )
+  const avatarTheme =
+    typeof meta.avatar_theme === 'string' ? meta.avatar_theme : null
+
+  const userName =
+    (typeof meta.full_name === 'string' ? meta.full_name : '') ||
+    user?.email?.split('@')[0] ||
+    'Profile'
 
   return (
     <>
@@ -361,8 +374,7 @@ function HeaderContent() {
               <Search className="w-5 h-5" aria-hidden="true" />
             </Link>
 
-            {/* ✅ P2 FIX: Theme toggle ALWAYS renders — reserved 20x20 space.
-                Prevents CLS from server rendering nothing vs client rendering icon. */}
+            {/* Theme toggle — reserved 20x20 space, prevents CLS */}
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
@@ -382,7 +394,7 @@ function HeaderContent() {
               </span>
             </button>
 
-            {/* ✅ P2 FIX: Desktop Auth — reserved min-width to avoid CLS */}
+            {/* Desktop Auth */}
             <div className="hidden md:flex items-center gap-2 min-w-[140px] justify-end">
               {authLoading ? (
                 <div
@@ -397,15 +409,26 @@ function HeaderContent() {
                   >
                     Dashboard
                   </Link>
+                  {/* ✅ Avatar + name → profile link */}
                   <Link
                     href="/profile"
-                    className="flex items-center gap-1 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 whitespace-nowrap"
+                    className="flex items-center gap-2 rounded-full pl-0.5 pr-1 py-0.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    aria-label="Open profile"
                   >
-                    <UserIcon className="w-4 h-4" aria-hidden="true" />
+                    <UserAvatar
+                      name={
+                        typeof meta.full_name === 'string'
+                          ? meta.full_name
+                          : null
+                      }
+                      email={user.email}
+                      style={avatarStyle}
+                      themeId={avatarTheme}
+                      size="sm"
+                      ariaLabel=""
+                    />
                     <span className="hidden lg:inline max-w-[100px] truncate">
-                      {user.user_metadata?.full_name ||
-                        user.email?.split('@')[0] ||
-                        'Profile'}
+                      {userName}
                     </span>
                   </Link>
                   <button
@@ -456,7 +479,6 @@ function HeaderContent() {
       {/* MOBILE DRAWER */}
       {isMenuOpen && (
         <>
-          {/* Backdrop — z-[45] so it sits above AdBanner (z-30), below drawer (z-50) */}
           <div
             className="fixed inset-0 bg-black/40 z-[45] md:hidden animate-fade-in"
             onClick={closeMobileMenu}
@@ -556,14 +578,25 @@ function HeaderContent() {
                     >
                       Dashboard
                     </Link>
+                    {/* ✅ Mobile profile link with avatar */}
                     <Link
                       href="/profile"
-                      className="block py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-indigo-600 dark:text-indigo-400"
+                      className="flex items-center gap-3 py-3 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium text-indigo-600 dark:text-indigo-400"
                       onClick={closeMobileMenu}
                     >
-                      {user.user_metadata?.full_name ||
-                        user.email?.split('@')[0] ||
-                        'Profile'}
+                      <UserAvatar
+                        name={
+                          typeof meta.full_name === 'string'
+                            ? meta.full_name
+                            : null
+                        }
+                        email={user.email}
+                        style={avatarStyle}
+                        themeId={avatarTheme}
+                        size="sm"
+                        ariaLabel=""
+                      />
+                      <span className="truncate">{userName}</span>
                     </Link>
                     <Link
                       href="/bookmarks"
