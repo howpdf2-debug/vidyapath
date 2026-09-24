@@ -261,6 +261,9 @@ export default async function DashboardPage() {
   const avatarTheme =
     typeof meta.avatar_theme === 'string' ? meta.avatar_theme : null
 
+  const avatarFigure =
+    typeof meta.avatar_figure === 'string' ? meta.avatar_figure : null
+
   return (
     <div className="space-y-8 pb-16">
       {/* ═══════ WELCOME HERO ═══════ */}
@@ -272,14 +275,15 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {/* ✅ Avatar — reads style + theme from user_metadata */}
             <div className="flex-shrink-0 rounded-2xl border-2 border-white/30 overflow-hidden shadow-lg">
-              <UserAvatar
-                name={displayName}
-                email={user.email ?? undefined}
-                style={avatarStyle}
-                themeId={avatarTheme}
-                size="xl"
-                ariaLabel={`Avatar for ${displayName}`}
-              />
+            <UserAvatar
+              name={displayName}
+              email={user.email ?? undefined}
+              style={avatarStyle}
+              themeId={avatarTheme}
+              figure={avatarFigure}
+              size="xl"
+              ariaLabel={`Avatar for ${displayName}`}
+            />
             </div>
             <DashboardGreeting
               name={displayName}

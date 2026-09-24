@@ -1,28 +1,27 @@
-// components/UserAvatar.tsx
-// Reusable avatar with initials + customizable gradient.
-// Reads style/theme from user_metadata or explicit props.
+'use client'
 
 import {
   getTheme,
   getStyle,
   getDisplayString,
+  getFigure,
   DEFAULT_STYLE,
   DEFAULT_THEME,
   type AvatarStyle,
 } from '@/lib/avatar'
+import { FIGURE_MAP, type FigureId } from '@/lib/avatar-figures'
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
 interface UserAvatarProps {
   name?: string | null
   email?: string | null
-  /** Override style (else reads from user_metadata via parent) */
   style?: AvatarStyle | null
-  /** Override theme id (else reads from user_metadata via parent) */
   themeId?: string | null
+  figure?: string | null
+  skinTone?: string
   size?: AvatarSize
   className?: string
-  /** For a11y — usually "Avatar for [name]" */
   ariaLabel?: string
 }
 
@@ -39,14 +38,38 @@ export function UserAvatar({
   email,
   style,
   themeId,
+  figure,
+  skinTone = '#F5C9A0',
   size = 'md',
   className = '',
   ariaLabel,
 }: UserAvatarProps) {
   const resolvedStyle = getStyle(style ?? DEFAULT_STYLE)
   const theme = getTheme(themeId ?? DEFAULT_THEME)
-  const display = getDisplayString(name, email, resolvedStyle)
   const label = ariaLabel ?? `Avatar for ${name || email || 'user'}`
+
+  // ─── Figure mode
+  if (resolvedStyle === 'figure') {
+    const figureId = getFigure(figure)
+    const Fig = FIGURE_MAP[figureId].Component
+
+    return (
+      <div
+        className={`inline-flex items-center justify-center bg-gradient-to-br ${theme.gradient} overflow-hidden shadow-md flex-shrink-0 select-none ${SIZES[size]} ${className}`}
+        role="img"
+        aria-label={label}
+      >
+        <Fig className="w-full h-full" skinTone={skinTone} />
+      </div>
+    )
+  }
+
+  // ─── Text mode
+  const display = getDisplayString(
+    name,
+    email,
+    resolvedStyle as Exclude<AvatarStyle, 'figure'>
+  )
 
   return (
     <div
