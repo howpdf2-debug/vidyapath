@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { DashboardGreeting } from '@/components/DashboardGreeting'
 import type { ComponentType } from 'react'
 import {
   BookOpen,
@@ -140,26 +141,22 @@ export default async function DashboardPage() {
     recentProgressRes,
     recentBookmarksRes,
   ] = await Promise.all([
-    // Count: total progress rows
     supabase
       .from('progress')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id),
 
-    // Count: completed
     supabase
       .from('progress')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('completed', true),
 
-    // Count: bookmarks
     supabase
       .from('bookmarks')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id),
 
-    // ✅ FIX G1+G3: recent 3 progress using `last_accessed`, NULLS last
     supabase
       .from('progress')
       .select(
@@ -174,7 +171,6 @@ export default async function DashboardPage() {
       .order('last_accessed', { ascending: false, nullsFirst: false })
       .limit(3),
 
-    // ✅ recent 6 bookmarks
     supabase
       .from('bookmarks')
       .select(
@@ -191,10 +187,16 @@ export default async function DashboardPage() {
   ])
 
   if (recentProgressRes.error) {
-    console.error('[dashboard] recent progress failed:', recentProgressRes.error.message)
+    console.error(
+      '[dashboard] recent progress failed:',
+      recentProgressRes.error.message
+    )
   }
   if (recentBookmarksRes.error) {
-    console.error('[dashboard] recent bookmarks failed:', recentBookmarksRes.error.message)
+    console.error(
+      '[dashboard] recent bookmarks failed:',
+      recentBookmarksRes.error.message
+    )
   }
 
   const totalChapters = totalRes.count ?? 0
@@ -247,17 +249,11 @@ export default async function DashboardPage() {
             >
               {initial}
             </div>
-            <div className="min-w-0">
-              <p className="text-white/80 text-sm">Welcome back,</p>
-              <h1 className="text-2xl md:text-3xl font-bold truncate">
-                {displayName}! 👋
-              </h1>
-              {user.email && (
-                <p className="text-white/70 text-xs md:text-sm truncate mt-1">
-                  {user.email}
-                </p>
-              )}
-            </div>
+            {/* ✅ FIX G1: Time-based greeting — client component, no hydration mismatch */}
+            <DashboardGreeting
+              name={displayName}
+              email={user.email ?? undefined}
+            />
           </div>
 
           <Link
@@ -624,7 +620,6 @@ function ActionCard({
 }
 
 function ContinueCard({ progress }: { progress: ProgressRow }) {
-  // ✅ FIX: FK JOIN returns array — normalize with [0]
   const chapter = progress.ncert?.[0] ?? null
   if (!chapter) return null
 
@@ -667,7 +662,6 @@ function ContinueCard({ progress }: { progress: ProgressRow }) {
 }
 
 function BookmarkCard({ bookmark }: { bookmark: BookmarkRow }) {
-  // ✅ FIX: FK JOIN returns array — normalize with [0]
   const chapter = bookmark.ncert?.[0] ?? null
   if (!chapter) return null
 
