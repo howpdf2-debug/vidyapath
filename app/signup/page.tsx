@@ -3,8 +3,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { getSafeNext } from '@/lib/next-param'
 import Link from 'next/link'
-import { Mail, Lock, User, Loader2, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react'
+import {
+  Mail,
+  Lock,
+  User,
+  Loader2,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ExistingEmailWarning } from '@/components/ExistingEmailWarning'
 import {
@@ -28,11 +37,14 @@ export default function SignupPage() {
 
   const passwordValidation = validatePasswordStrength(password)
 
-  // Already logged in check
+  // ✅ Already logged in → next or /dashboard
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const safeNext = getSafeNext(params.get('next'), '/dashboard')
+
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
-        router.push('/dashboard')
+        router.push(safeNext)
       }
     })
   }, [router])
@@ -41,7 +53,7 @@ export default function SignupPage() {
     e.preventDefault()
     setEmailExists(false)
 
-    // Validation
+    // ─── Validation ───
     const nameCheck = validateName(name)
     if (!nameCheck.valid) {
       toast.error(nameCheck.error!)
@@ -68,19 +80,28 @@ export default function SignupPage() {
 
     setLoading(true)
 
+    // ✅ FIX S2: Compute safeNext BEFORE signUp call
+    const params = new URLSearchParams(window.location.search)
+    const safeNext = getSafeNext(params.get('next'), '/dashboard')
+
+    // ✅ FIX S1: Build emailRedirectTo with `next` param
+    const callbackUrl = new URL('/auth/callback', window.location.origin)
+    if (safeNext !== '/dashboard') {
+      callbackUrl.searchParams.set('next', safeNext)
+    }
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
           data: { full_name: name.trim() },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: callbackUrl.toString(),
         },
       })
 
       if (error) {
         const parsed = parseAuthError(error.message)
-
         if (parsed.type === 'email_exists') {
           setEmailExists(true)
         }
@@ -97,13 +118,16 @@ export default function SignupPage() {
         return
       }
 
-      // Success
+      // ─── Success ───
       if (data.user && !data.session) {
         toast.success('Account created! Please check your email to verify.')
-        router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`)
+        const verifyUrl = new URL('/verify-email', window.location.origin)
+        verifyUrl.searchParams.set('email', email.trim())
+        verifyUrl.searchParams.set('next', safeNext)
+        router.push(verifyUrl.pathname + verifyUrl.search)
       } else if (data.session) {
         toast.success('Account created! Welcome!')
-        router.push('/dashboard')
+        router.push(safeNext)
       } else {
         toast.error('Something went wrong. Please try again.')
         setLoading(false)
@@ -131,7 +155,6 @@ export default function SignupPage() {
             Verify email karna zaroori hai — link inbox me aayega.
           </p>
 
-          {/* ⚠️ Email already exists — Option D component */}
           {emailExists && <ExistingEmailWarning email={email} variant="signup" />}
 
           <form onSubmit={handleSignup} className="mt-6 space-y-4">

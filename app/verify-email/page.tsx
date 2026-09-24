@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Mail, Loader2, CheckCircle, ArrowLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getSafeNext } from '@/lib/next-param'
 
 function VerifyEmailContent() {
   const [email, setEmail] = useState('')
@@ -16,6 +17,10 @@ function VerifyEmailContent() {
   const [countdown, setCountdown] = useState(0)
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // ✅ FIX V1: Read next from URL once
+  const nextParam = searchParams.get('next')
+  const safeNext = getSafeNext(nextParam, '/dashboard')
 
   useEffect(() => {
     const emailParam = searchParams.get('email')
@@ -30,12 +35,13 @@ function VerifyEmailContent() {
 
         console.log('[verify-email] Session:', session?.user?.email)
         console.log('[verify-email] Error:', error)
+        console.log('[verify-email] safeNext:', safeNext)
 
         if (session?.user) {
-          console.log('[verify-email] ✅ Session found — verified!')
+          console.log('[verify-email] Session found — verified!')
           setStatus('verified')
           setTimeout(() => {
-            router.push('/dashboard')
+            router.push(safeNext) // ✅ FIX V2
             router.refresh()
           }, 800)
           return
@@ -57,16 +63,16 @@ function VerifyEmailContent() {
       if (event === 'SIGNED_IN' && session?.user) {
         setStatus('verified')
         setTimeout(() => {
-          router.push('/dashboard')
+          router.push(safeNext) // ✅ FIX V2
           router.refresh()
         }, 800)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [searchParams, router])
+  }, [searchParams, router, safeNext])
 
-  // Countdown timer for resend cooldown
+  // Countdown timer
   useEffect(() => {
     if (countdown <= 0) return
     const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
@@ -87,12 +93,17 @@ function VerifyEmailContent() {
     setResendLoading(true)
 
     try {
-      // ✅ FIX: Added emailRedirectTo + proper error handling
+      // ✅ FIX V3: Preserve `next` in resend callback URL
+      const callbackUrl = new URL('/auth/callback', window.location.origin)
+      if (safeNext !== '/dashboard') {
+        callbackUrl.searchParams.set('next', safeNext)
+      }
+
       const { data, error } = await supabase.auth.resend({
         type: 'signup',
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: callbackUrl.toString(),
         },
       })
 
@@ -103,21 +114,22 @@ function VerifyEmailContent() {
         console.error('[resend] Error:', error)
 
         if (msg.includes('rate limit') || msg.includes('too many')) {
-          toast.error(
-            'Bahut zyada attempts. 1 ghante baad try karo.',
-            { duration: 6000 }
-          )
-          setCountdown(3600) // 1 hour
-        } else if (msg.includes('already confirmed') || msg.includes('already verified')) {
+          toast.error('Bahut zyada attempts. 1 ghante baad try karo.', {
+            duration: 6000,
+          })
+          setCountdown(3600)
+        } else if (
+          msg.includes('already confirmed') ||
+          msg.includes('already verified')
+        ) {
           toast.success('Email already verified! Login karo.')
           setTimeout(() => router.push('/login'), 1500)
         } else if (msg.includes('user not found') || msg.includes('not found')) {
           toast.error('Account nahi mila. Naya signup karo.')
         } else if (msg.includes('email') || msg.includes('smtp')) {
-          toast.error(
-            'Email service me temporary issue. Kuch der baad try karo.',
-            { duration: 6000 }
-          )
+          toast.error('Email service me temporary issue. Kuch der baad try karo.', {
+            duration: 6000,
+          })
         } else {
           toast.error(error.message)
         }
@@ -130,7 +142,7 @@ function VerifyEmailContent() {
         'Verification email bhej di! Inbox aur spam folder check karo.',
         { duration: 6000 }
       )
-      setCountdown(60) // 60 second cooldown
+      setCountdown(60)
       setResendLoading(false)
     } catch (err: any) {
       console.error('[resend] Unexpected error:', err)
@@ -163,7 +175,7 @@ function VerifyEmailContent() {
             Email Verified!
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-300">
-            Redirecting to dashboard...
+            Redirecting...
           </p>
         </div>
       </div>
@@ -187,7 +199,7 @@ function VerifyEmailContent() {
           </div>
           <h1 className="text-2xl font-bold">Verify your email</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-300 text-sm">
-            We've sent a verification link to{' '}
+            We&apos;ve sent a verification link to{' '}
             <strong className="break-all">{email || 'your email'}</strong>.
           </p>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -195,7 +207,7 @@ function VerifyEmailContent() {
           </p>
 
           <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-xs text-blue-700 dark:text-blue-300 text-left">
-            <p className="font-medium mb-1">📌 Email nahi mili?</p>
+            <p className="font-medium mb-1">📬 Email nahi mili?</p>
             <ul className="space-y-1 list-disc list-inside">
               <li>Spam folder check karo</li>
               <li>2-3 minute wait karo</li>

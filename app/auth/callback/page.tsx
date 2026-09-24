@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getSafeNext } from '@/lib/next-param'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -10,10 +11,18 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     async function handleCallback() {
+      // ✅ FIX C1+C3: Read `next` from search OR hash (magic link vs OAuth)
+      const searchParams = new URLSearchParams(window.location.search)
+      let rawNext = searchParams.get('next')
+      if (!rawNext && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.slice(1))
+        rawNext = hashParams.get('next')
+      }
+      const safeNext = getSafeNext(rawNext, '/dashboard')
+
       try {
-        console.log('[auth/callback] Full URL:', window.location.href)
-        console.log('[auth/callback] Hash:', window.location.hash)
-        console.log('[auth/callback] Search:', window.location.search)
+        console.log('[auth/callback] URL:', window.location.href)
+        console.log('[auth/callback] safeNext:', safeNext)
 
         // 1. Check if Supabase auto-detected session from URL
         const {
@@ -29,9 +38,9 @@ export default function AuthCallbackPage() {
         }
 
         if (session) {
-          console.log('[auth/callback] ✅ Session found:', session.user.email)
-          setStatus('Success! Redirecting to dashboard...')
-          router.push('/dashboard')
+          console.log('[auth/callback] Session found:', session.user.email)
+          setStatus('Success! Redirecting...')
+          router.push(safeNext)
           return
         }
 
@@ -51,14 +60,14 @@ export default function AuthCallbackPage() {
             return
           }
 
-          console.log('[auth/callback] ✅ Code exchanged, session created')
+          console.log('[auth/callback] Code exchanged')
           setStatus('Success! Redirecting...')
-          router.push('/dashboard')
+          router.push(safeNext)
           return
         }
 
         // 3. No session, no code — wait for Supabase to process
-        console.log('[auth/callback] Waiting for Supabase to process...')
+        console.log('[auth/callback] Waiting for Supabase...')
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
         const {
@@ -66,8 +75,8 @@ export default function AuthCallbackPage() {
         } = await supabase.auth.getSession()
 
         if (retrySession) {
-          console.log('[auth/callback] ✅ Session found on retry')
-          router.push('/dashboard')
+          console.log('[auth/callback] Session found on retry')
+          router.push(safeNext)
           return
         }
 
