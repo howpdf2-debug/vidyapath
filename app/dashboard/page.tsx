@@ -21,6 +21,8 @@ import {
 } from 'lucide-react'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
 import { ProgressRing } from '@/components/ProgressRing'
+import { StreakCard } from '@/components/StreakCard'
+import { computeStreak } from '@/lib/streak'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,13 +135,14 @@ export default async function DashboardPage() {
     redirect('/admin')
   }
 
-  // ─── 4. Stats + recent activity — all parallel ───
+  // ─── 4. Stats + recent activity + streak — all parallel ───
   const [
     totalRes,
     completedRes,
     bookmarksRes,
     recentProgressRes,
     recentBookmarksRes,
+    streakRes,
   ] = await Promise.all([
     supabase
       .from('progress')
@@ -184,6 +187,15 @@ export default async function DashboardPage() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false, nullsFirst: false })
       .limit(6),
+
+    // ✅ Streak: all last_accessed timestamps (up to 400 for safety)
+    supabase
+      .from('progress')
+      .select('last_accessed')
+      .eq('user_id', user.id)
+      .not('last_accessed', 'is', null)
+      .order('last_accessed', { ascending: false })
+      .limit(400),
   ])
 
   if (recentProgressRes.error) {
@@ -197,6 +209,9 @@ export default async function DashboardPage() {
       '[dashboard] recent bookmarks failed:',
       recentBookmarksRes.error.message
     )
+  }
+  if (streakRes.error) {
+    console.error('[dashboard] streak query failed:', streakRes.error.message)
   }
 
   const totalChapters = totalRes.count ?? 0
@@ -212,6 +227,11 @@ export default async function DashboardPage() {
 
   const remainingChapters = Math.max(0, totalChapters - completedChapters)
   const xpPoints = completedChapters * 10
+
+  // ✅ Streak compute (server-side, from last_accessed timestamps)
+  const streak = computeStreak(
+    (streakRes.data ?? []).map((r) => r.last_accessed)
+  )
 
   // ─── 5. Display name (null-safe) ───
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
@@ -320,6 +340,20 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      {/* ═══════ STREAK ═══════ */}
+      <section>
+        <SectionHeader
+          icon={Zap}
+          title="Your Streak"
+          subtitle={
+            streak > 0
+              ? `${streak} din se consistent 🔥`
+              : 'Roz padho, streak banao'
+          }
+        />
+        <StreakCard streak={streak} />
+      </section>
+
       {/* ═══════ LEARNING PROGRESS (Ring) ═══════ */}
       <section
         className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6"
@@ -341,7 +375,6 @@ export default async function DashboardPage() {
           </p>
         ) : (
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
-            {/* ✅ G2+G4: SVG ring with a11y */}
             <div
               role="progressbar"
               aria-valuenow={completionPercentage}
@@ -357,7 +390,6 @@ export default async function DashboardPage() {
               />
             </div>
 
-            {/* ✅ G3: Stats column */}
             <div className="flex flex-col gap-3 sm:gap-4">
               <Stat
                 value={completedChapters}
@@ -437,7 +469,6 @@ export default async function DashboardPage() {
             title="My Bookmarks"
             description={
               bookmarksCount > 0
-                // ✅ G5: Hindi-mix polish
                 ? `${bookmarksCount} saved chapter${
                     bookmarksCount === 1 ? '' : 's'
                   } — saare dekho`
@@ -602,7 +633,6 @@ function SectionHeader({
   )
 }
 
-// ✅ G3: New Stat sub-component for ring side stats
 function Stat({
   value,
   label,
@@ -685,9 +715,7 @@ function ContinueCard({ progress }: { progress: ProgressRow }) {
   if (!chapter) return null
 
   const isCompleted = progress.completed === true
-  const ctaLabel = isCompleted
-    ? 'Dobara dekho'
-    : 'Shuru karo'
+  const ctaLabel = isCompleted ? 'Dobara dekho' : 'Shuru karo'
 
   return (
     <Link
