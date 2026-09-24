@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { DashboardGreeting } from '@/components/DashboardGreeting'
+import { UserAvatar } from '@/components/UserAvatar'
+import { getStyle } from '@/lib/avatar'
 import type { ComponentType } from 'react'
 import {
   BookOpen,
@@ -252,7 +254,12 @@ export default async function DashboardPage() {
       : '') ||
     'User'
 
-  const initial = (displayName.charAt(0) || 'U').toUpperCase()
+  // ✅ Avatar prefs from user_metadata (Phase 3 picker will set these)
+  const avatarStyle = getStyle(
+    typeof meta.avatar_style === 'string' ? meta.avatar_style : null
+  )
+  const avatarTheme =
+    typeof meta.avatar_theme === 'string' ? meta.avatar_theme : null
 
   return (
     <div className="space-y-8 pb-16">
@@ -263,12 +270,16 @@ export default async function DashboardPage() {
 
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            <div
-              className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl md:text-3xl font-bold flex-shrink-0 border-2 border-white/30"
-              role="img"
-              aria-label={`Avatar for ${displayName}`}
-            >
-              {initial}
+            {/* ✅ Avatar — reads style + theme from user_metadata */}
+            <div className="flex-shrink-0 rounded-2xl border-2 border-white/30 overflow-hidden shadow-lg">
+              <UserAvatar
+                name={displayName}
+                email={user.email ?? undefined}
+                style={avatarStyle}
+                themeId={avatarTheme}
+                size="xl"
+                ariaLabel={`Avatar for ${displayName}`}
+              />
             </div>
             <DashboardGreeting
               name={displayName}
