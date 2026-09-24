@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { MessageCircle, Trash2, Send, Loader2 } from 'lucide-react'
@@ -15,29 +16,88 @@ interface Comment {
   author_name: string | null
 }
 
-export function CommentSection({ chapterId }: { chapterId: string | number }) {
+interface CommentSectionProps {
+  chapterId: string | number
+  language?: 'en' | 'hi'
+}
+
+export function CommentSection({
+  chapterId,
+  language = 'en',
+}: CommentSectionProps) {
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [user, setUser] = useState<any>(null)
+  // ✅ C1: typed User instead of any
+  const [user, setUser] = useState<User | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  const isHi = language === 'hi'
+  const ncertId = Number(chapterId)
+
+  const labels = {
+    heading: isHi ? 'टिप्पणियाँ' : 'Comments',
+    placeholder: isHi
+      ? 'Kya sochte ho? Comment karo...'
+      : 'What do you think? Comment...',
+    post: isHi ? 'Post' : 'Post',
+    posting: isHi ? 'Bhej rahe...' : 'Posting...',
+    loginPrompt: isHi ? 'karke comment karo' : 'to post comments',
+    loading: isHi ? 'Comments aa rahe hain...' : 'Loading comments...',
+    empty: isHi
+      ? 'Abhi tak koi comment nahi. Pehle tum bano! 💬'
+      : 'No comments yet. Be the first! 💬',
+    deleteBtn: isHi ? 'Hataao' : 'Delete',
+    deleteConfirm: isHi
+      ? 'Comment delete karna hai?'
+      : 'Delete this comment?',
+    postedToast: isHi ? 'Comment post ho gaya ✓' : 'Comment posted ✓',
+    deletedToast: isHi ? 'Comment hata diya' : 'Comment deleted',
+    loginError: isHi
+      ? 'Comment karne ke liye login karo 💬'
+      : 'Login to comment 💬',
+    fallbackName: isHi ? 'Student' : 'Student',
+    youLabel: isHi ? 'Aap' : 'You',
+  }
+
+  // ✅ C4: active flag cleanup for auth subscription
   useEffect(() => {
     setMounted(true)
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
-    fetchComments()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapterId])
+    let active = true
 
-  const fetchComments = async () => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (active) setUser(data.user)
+    }
+    fetchUser()
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_e, session) => {
+        if (active) setUser(session?.user ?? null)
+      }
+    )
+
+    return () => {
+      active = false
+      listener.subscription.unsubscribe()
+    }
+  }, [])
+
+  // ✅ C2: useCallback + typed deps
+  const fetchComments = useCallback(async () => {
     setFetching(true)
     try {
-      // ✅ Fetch comments
+      if (!Number.isFinite(ncertId) || ncertId <= 0) {
+        setComments([])
+        setFetching(false)
+        return
+      }
+
       const { data: rawComments, error } = await supabase
         .from('chapter_comments')
         .select('id, user_id, ncert_id, comment, created_at')
-        .eq('ncert_id', chapterId)
+        .eq('ncert_id', ncertId)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -54,8 +114,7 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
         return
       }
 
-      // ✅ Fetch author names from public_profiles view (safe fields only)
-      const userIds = [...new Set(rawComments.map((c: any) => c.user_id))]
+      const userIds = [...new Set(rawComments.map((c) => c.user_id))]
 
       const { data: profiles } = await supabase
         .from('public_profiles')
@@ -63,10 +122,10 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
         .in('id', userIds)
 
       const profileMap = new Map(
-        (profiles || []).map((p: any) => [p.id, p.full_name])
+        (profiles ?? []).map((p) => [p.id, p.full_name])
       )
 
-      const commentsWithAuthors: Comment[] = rawComments.map((c: any) => ({
+      const commentsWithAuthors: Comment[] = rawComments.map((c) => ({
         id: c.id,
         user_id: c.user_id,
         ncert_id: c.ncert_id,
@@ -82,12 +141,16 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
     } finally {
       setFetching(false)
     }
-  }
+  }, [ncertId])
+
+  useEffect(() => {
+    void fetchComments()
+  }, [fetchComments])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) {
-      toast.error('Please login to comment')
+      toast.error(labels.loginError)
       return
     }
     if (!newComment.trim()) return
@@ -95,61 +158,74 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
     setLoading(true)
 
     const { error } = await supabase.from('chapter_comments').insert({
-      ncert_id: chapterId,
+      ncert_id: ncertId,
       user_id: user.id,
       comment: newComment.trim(),
     })
 
     if (error) {
-      toast.error(error.message)
-    } else {
-      toast.success('Comment added!')
-      setNewComment('')
-      fetchComments()
+      console.error('[comments] insert:', error)
+      toast.error(
+        isHi
+          ? 'Comment save nahi hua. Dobara try karo'
+          : 'Could not post. Try again'
+      )
+      setLoading(false)
+      return
     }
+
+    // ✅ C3: await fetch BEFORE setLoading(false)
+    toast.success(labels.postedToast)
+    setNewComment('')
+    await fetchComments()
     setLoading(false)
   }
 
   const deleteComment = async (id: number) => {
-    if (!confirm('Delete comment?')) return
+    if (!confirm(labels.deleteConfirm)) return
     const { error } = await supabase
       .from('chapter_comments')
       .delete()
       .eq('id', id)
-    if (error) toast.error(error.message)
-    else {
-      toast.success('Comment deleted')
-      fetchComments()
+    if (error) {
+      console.error('[comments] delete:', error)
+      toast.error(
+        isHi
+          ? 'Delete nahi hua. Dobara try karo'
+          : 'Could not delete. Try again'
+      )
+      return
     }
+    toast.success(labels.deletedToast)
+    await fetchComments()
   }
 
   const getDisplayName = (c: Comment): string => {
-    // 1. Own comment — use current user's metadata
     if (user && c.user_id === user.id) {
       return (
         user.user_metadata?.full_name ||
         user.email?.split('@')[0] ||
-        'You'
+        labels.youLabel
       )
     }
-    // 2. Profile name from view
     if (c.author_name) return c.author_name
-    // 3. Fallback
-    return 'Student'
+    return labels.fallbackName
   }
 
-  const getInitial = (c: Comment): string => {
-    return getDisplayName(c).charAt(0).toUpperCase() || 'S'
-  }
+  const getInitial = (c: Comment): string =>
+    getDisplayName(c).charAt(0).toUpperCase() || 'S'
 
   if (!mounted) return null
+
+  // ✅ C2: language-aware date formatting
+  const dateLocale = isHi ? 'hi-IN' : 'en-IN'
 
   return (
     <section className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-6">
       <div className="flex items-center gap-2 mb-6">
         <MessageCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
         <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-          Comments
+          {labels.heading}
         </h3>
         {comments.length > 0 && (
           <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -158,18 +234,31 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
         )}
       </div>
 
-      {/* Form */}
       {user ? (
         <form onSubmit={handleSubmit} className="mb-6">
           <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Write a comment..."
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              maxLength={500}
-              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/50 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-            />
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder={labels.placeholder}
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                maxLength={500}
+                className="w-full px-4 py-2.5 pr-16 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/50 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+              />
+              {/* ✅ C5: char counter shows when near limit */}
+              {newComment.length > 400 && (
+                <span
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono tabular-nums ${
+                    newComment.length >= 500
+                      ? 'text-rose-500'
+                      : 'text-gray-400'
+                  }`}
+                >
+                  {newComment.length}/500
+                </span>
+              )}
+            </div>
             <button
               type="submit"
               disabled={loading || !newComment.trim()}
@@ -180,7 +269,7 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  Post
+                  {labels.post}
                 </>
               )}
             </button>
@@ -192,24 +281,23 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
             <Link href="/login" className="font-medium underline">
               Login
             </Link>{' '}
-            to post comments
+            {labels.loginPrompt}
           </p>
         </div>
       )}
 
-      {/* List */}
       {fetching ? (
         <div className="text-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto" />
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            Loading comments...
+            {labels.loading}
           </p>
         </div>
       ) : comments.length === 0 ? (
         <div className="text-center py-8">
           <MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            No comments yet. Be the first to comment!
+            {labels.empty}
           </p>
         </div>
       ) : (
@@ -229,7 +317,7 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
                   </span>
                 </div>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {new Date(c.created_at).toLocaleDateString('en-IN', {
+                  {new Date(c.created_at).toLocaleDateString(dateLocale, {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
@@ -247,7 +335,7 @@ export function CommentSection({ chapterId }: { chapterId: string | number }) {
                   className="mt-2 inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Delete
+                  {labels.deleteBtn}
                 </button>
               )}
             </div>
