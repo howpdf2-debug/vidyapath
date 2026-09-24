@@ -20,7 +20,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { createServerClientWithCookies } from '@/lib/supabase-server'
-import { ProgressBar } from '@/components/ProgressBar'
+import { ProgressRing } from '@/components/ProgressRing'
 
 export const dynamic = 'force-dynamic'
 
@@ -210,6 +210,7 @@ export default async function DashboardPage() {
       ? Math.round((completedChapters / totalChapters) * 100)
       : 0
 
+  const remainingChapters = Math.max(0, totalChapters - completedChapters)
   const xpPoints = completedChapters * 10
 
   // ─── 5. Display name (null-safe) ───
@@ -249,7 +250,6 @@ export default async function DashboardPage() {
             >
               {initial}
             </div>
-            {/* ✅ FIX G1: Time-based greeting — client component, no hydration mismatch */}
             <DashboardGreeting
               name={displayName}
               email={user.email ?? undefined}
@@ -320,24 +320,62 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* ═══════ PROGRESS BAR ═══════ */}
-      <section className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+      {/* ═══════ LEARNING PROGRESS (Ring) ═══════ */}
+      <section
+        className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6"
+        aria-labelledby="learning-progress-heading"
+      >
+        <div className="flex items-center gap-2 mb-6">
+          <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <h2
+            id="learning-progress-heading"
+            className="text-lg font-bold text-slate-900 dark:text-white"
+          >
             Learning Progress
           </h2>
-          <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
-            {completionPercentage}%
-          </span>
         </div>
 
-        <ProgressBar completed={completedChapters} total={totalChapters} />
-
-        {totalChapters === 0 && (
-          <p className="text-sm text-slate-500 dark:text-slate-400 text-center mt-4">
+        {totalChapters === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
             Start reading chapters to track your progress 📚
           </p>
+        ) : (
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
+            {/* ✅ G2+G4: SVG ring with a11y */}
+            <div
+              role="progressbar"
+              aria-valuenow={completionPercentage}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Learning progress: ${completionPercentage}%`}
+            >
+              <ProgressRing
+                percentage={completionPercentage}
+                size={180}
+                strokeWidth={14}
+                label="Completed"
+              />
+            </div>
+
+            {/* ✅ G3: Stats column */}
+            <div className="flex flex-col gap-3 sm:gap-4">
+              <Stat
+                value={completedChapters}
+                label="Chapters Done"
+                color="text-emerald-600 dark:text-emerald-400"
+              />
+              <Stat
+                value={totalChapters}
+                label="Total Chapters"
+                color="text-indigo-600 dark:text-indigo-400"
+              />
+              <Stat
+                value={remainingChapters}
+                label="Remaining"
+                color="text-amber-600 dark:text-amber-400"
+              />
+            </div>
+          </div>
         )}
       </section>
 
@@ -399,10 +437,11 @@ export default async function DashboardPage() {
             title="My Bookmarks"
             description={
               bookmarksCount > 0
-                ? `View all ${bookmarksCount} saved chapter${
+                // ✅ G5: Hindi-mix polish
+                ? `${bookmarksCount} saved chapter${
                     bookmarksCount === 1 ? '' : 's'
-                  }`
-                : 'Save chapters to see them here'
+                  } — saare dekho`
+                : 'Chapter save karo, yahan dikhega'
             }
             gradient="from-purple-500 to-pink-500"
           />
@@ -412,8 +451,8 @@ export default async function DashboardPage() {
             title="Continue Learning"
             description={
               totalChapters > 0
-                ? 'Pick up where you left off'
-                : 'Start exploring NCERT chapters'
+                ? 'Wahin se shuru karo jahan chhoda tha'
+                : 'NCERT chapters explore karo'
             }
             gradient="from-indigo-500 to-blue-500"
           />
@@ -563,6 +602,28 @@ function SectionHeader({
   )
 }
 
+// ✅ G3: New Stat sub-component for ring side stats
+function Stat({
+  value,
+  label,
+  color,
+}: {
+  value: number
+  label: string
+  color: string
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className={`text-2xl font-black tabular-nums ${color}`}>
+        {value}
+      </span>
+      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+        {label}
+      </span>
+    </div>
+  )
+}
+
 function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
   return (
     <div className="group relative overflow-hidden bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5 hover:shadow-lg transition-all">
@@ -624,6 +685,9 @@ function ContinueCard({ progress }: { progress: ProgressRow }) {
   if (!chapter) return null
 
   const isCompleted = progress.completed === true
+  const ctaLabel = isCompleted
+    ? 'Dobara dekho'
+    : 'Shuru karo'
 
   return (
     <Link
@@ -653,7 +717,7 @@ function ContinueCard({ progress }: { progress: ProgressRow }) {
           {chapter.chapter_title || `Chapter ${chapter.chapter_num}`}
         </p>
         <span className="inline-flex items-center gap-1 text-xs font-semibold">
-          {isCompleted ? 'Review' : 'Resume'}
+          {ctaLabel}
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
         </span>
       </div>
