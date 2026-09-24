@@ -39,7 +39,6 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null)
   const [fetching, setFetching] = useState(true)
 
-  // ─── Form state
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -47,13 +46,11 @@ export default function ProfilePage() {
   const [savingPassword, setSavingPassword] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
-  // ─── UI state
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
   const router = useRouter()
 
-  // ─── Auth listener + initial fetch
   useEffect(() => {
     let active = true
 
@@ -94,7 +91,6 @@ export default function ProfilePage() {
     }
   }, [router])
 
-  // ─── Derived values
   const isVerified = Boolean(
     user?.email_confirmed_at || user?.confirmed_at
   )
@@ -114,9 +110,10 @@ export default function ProfilePage() {
   )
   const avatarTheme =
     typeof meta.avatar_theme === 'string' ? meta.avatar_theme : null
+  const avatarFigure =
+    typeof meta.avatar_figure === 'string' ? meta.avatar_figure : null
   const displayName = savedName || user?.email?.split('@')[0] || 'User'
 
-  // ─── Handlers
   const handleSaveName = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user || !nameChanged || savingName) return
@@ -143,7 +140,6 @@ export default function ProfilePage() {
       }
       toast.success('Naam update ho gaya ✓')
 
-      // Refresh user to get new metadata
       const { data } = await supabase.auth.getUser()
       if (data.user) setUser(data.user)
     } catch (err) {
@@ -172,7 +168,6 @@ export default function ProfilePage() {
       const { error } = await supabase.auth.updateUser({ password })
       if (error) {
         console.error('[profile] password update:', error)
-        // Check specific error cases
         const msg = error.message.toLowerCase()
         if (msg.includes('same') || msg.includes('recent')) {
           toast.error('Yeh password pehle use ho chuka hai')
@@ -207,7 +202,6 @@ export default function ProfilePage() {
     }
   }
 
-  // ─── Loading skeleton
   if (fetching || !user) {
     return (
       <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
@@ -232,6 +226,7 @@ export default function ProfilePage() {
               email={user.email ?? undefined}
               style={avatarStyle}
               themeId={avatarTheme}
+              figure={avatarFigure}
               size="xl"
               ariaLabel={`Avatar for ${displayName}`}
             />
@@ -423,10 +418,12 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Password strength indicators */}
           {passwordFormVisible && (
             <div className="space-y-1.5 text-xs">
-              <Requirement met={pwValidation.checks.length} label="At least 8 characters" />
+              <Requirement
+                met={pwValidation.checks.length}
+                label="At least 8 characters"
+              />
               <Requirement
                 met={pwValidation.checks.uppercase}
                 label="At least 1 uppercase letter (A-Z)"
@@ -435,11 +432,13 @@ export default function ProfilePage() {
                 met={pwValidation.checks.lowercase}
                 label="At least 1 lowercase letter (a-z)"
               />
-              <Requirement met={pwValidation.checks.number} label="At least 1 number (0-9)" />
+              <Requirement
+                met={pwValidation.checks.number}
+                label="At least 1 number (0-9)"
+              />
             </div>
           )}
 
-          {/* Confirm password (only when password typed) */}
           {passwordFormVisible && (
             <div>
               <label
@@ -529,7 +528,7 @@ export default function ProfilePage() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Requirement indicator (reused from signup)
+// Requirement indicator
 // ═══════════════════════════════════════════════════════════════
 function Requirement({ met, label }: { met: boolean; label: string }) {
   return (

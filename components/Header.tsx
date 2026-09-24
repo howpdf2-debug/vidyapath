@@ -186,13 +186,15 @@ function HeaderContent() {
     hamburgerRef.current?.focus()
   }
 
-  // ✅ Avatar prefs from user_metadata (Phase 3 picker will set these)
+  // ✅ Avatar prefs from user_metadata
   const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
   const avatarStyle = getStyle(
     typeof meta.avatar_style === 'string' ? meta.avatar_style : null
   )
   const avatarTheme =
     typeof meta.avatar_theme === 'string' ? meta.avatar_theme : null
+  const avatarFigure =
+    typeof meta.avatar_figure === 'string' ? meta.avatar_figure : null
 
   const userName =
     (typeof meta.full_name === 'string' ? meta.full_name : '') ||
@@ -374,7 +376,7 @@ function HeaderContent() {
               <Search className="w-5 h-5" aria-hidden="true" />
             </Link>
 
-            {/* Theme toggle — reserved 20x20 space, prevents CLS */}
+            {/* Theme toggle */}
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition tap-target flex items-center justify-center"
@@ -424,6 +426,7 @@ function HeaderContent() {
                       email={user.email}
                       style={avatarStyle}
                       themeId={avatarTheme}
+                      figure={avatarFigure}
                       size="sm"
                       ariaLabel=""
                     />
@@ -593,6 +596,7 @@ function HeaderContent() {
                         email={user.email}
                         style={avatarStyle}
                         themeId={avatarTheme}
+                        figure={avatarFigure}
                         size="sm"
                         ariaLabel=""
                       />
