@@ -12,14 +12,25 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     async function handleCallback() {
       // ✅ FIX C1+C3: Read `next` from search OR hash (magic link vs OAuth)
-      const searchParams = new URLSearchParams(window.location.search)
+            const searchParams = new URLSearchParams(window.location.search)
       let rawNext = searchParams.get('next')
+      const typeParam = searchParams.get('type')
+
+      // Parse hash (Supabase PKCE flow)
       if (!rawNext && window.location.hash) {
         const hashParams = new URLSearchParams(window.location.hash.slice(1))
         rawNext = hashParams.get('next')
       }
-      const safeNext = getSafeNext(rawNext, '/dashboard')
 
+      // ✅ Recovery flow: detect via type param OR URL hash
+      const isRecoveryFlow =
+        typeParam === 'recovery' ||
+        window.location.hash.includes('type=recovery')
+
+      const safeNext = getSafeNext(
+        rawNext,
+        isRecoveryFlow ? '/reset-password' : '/dashboard'
+      )
       try {
         console.log('[auth/callback] URL:', window.location.href)
         console.log('[auth/callback] safeNext:', safeNext)
