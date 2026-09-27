@@ -23,17 +23,11 @@ import { checkRateLimit } from '@/lib/rate-limit'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// ═══════════════════════════════════════════════════════
-// ✅ Note ID is INTEGER (not UUID)
-// ═══════════════════════════════════════════════════════
-function parseNoteId(raw: unknown): number | null {
-  if (raw === null || raw === undefined || raw === '') return null
-  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10)
-  if (!Number.isInteger(n) || n < 1) return null
-  return n
-}
+const VALID_LEVELS = ['basic', 'advance', 'pro'] as const
+const VALID_STATUS = ['draft', 'published', 'archived'] as const
+const VALID_DIFFICULTY = ['easy', 'medium', 'hard'] as const
+const VALID_LANGUAGES = ['en', 'hi'] as const
 
-// ✅ Allowlist — mass-assignment protection
 const ALLOWED_NOTE_FIELDS = [
   'class',
   'subject',
@@ -45,13 +39,30 @@ const ALLOWED_NOTE_FIELDS = [
   'order_index',
   'pdf_url',
   'pdf_size_kb',
+  'level',
+  'status',
 ] as const
 
-const VALID_DIFFICULTY = ['easy', 'medium', 'hard'] as const
+function parseNoteId(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10)
+  if (!Number.isInteger(n) || n < 1) return null
+  return n
+}
 
-// ═══════════════════════════════════════════════════════
-// Validation
-// ═══════════════════════════════════════════════════════
+function computeWordCount(html: string): number {
+  const plain = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return plain.split(/\s+/).filter(Boolean).length
+}
+
+function computeReadingTime(words: number): number {
+  return Math.max(1, Math.ceil(words / 200))
+}
+
 function validateNoteInput(
   picked: Record<string, unknown>,
   isCreate: boolean
@@ -60,24 +71,24 @@ function validateNoteInput(
   const errors: FieldErrors = {}
 
   if (isCreate || 'topic' in picked) {
-    const v = toTrimmedString(picked.topic, 'topic', errors, {
-      min: 2,
-      max: 300,
-    })
+    const v = toTrimmedString(picked.topic, 'topic', errors, { min: 2, max: 300 })
     if (v !== null) data.topic = v
   }
 
   if (isCreate || 'content_html' in picked) {
     if (picked.content_html === null || picked.content_html === undefined) {
-      if (isCreate) errors.content_html = 'content_html ज़रूरी है'
+      if (isCreate) errors.content_html = 'Content required'
     } else if (typeof picked.content_html !== 'string') {
-      errors.content_html = 'content_html must be text'
+      errors.content_html = 'Content must be text'
     } else {
       const cleaned = sanitizeHtml(picked.content_html).trim()
       if (isCreate && cleaned.length === 0) {
-        errors.content_html = 'content_html खाली नहीं हो सकता'
+        errors.content_html = 'Content cannot be empty'
       } else {
         data.content_html = cleaned
+        const words = computeWordCount(cleaned)
+        data.word_count = words
+        data.reading_time_min = computeReadingTime(words)
       }
     }
   }
@@ -87,9 +98,31 @@ function validateNoteInput(
       typeof picked.difficulty_level !== 'string' ||
       !VALID_DIFFICULTY.includes(picked.difficulty_level as any)
     ) {
-      errors.difficulty_level = `Must be one of: ${VALID_DIFFICULTY.join(', ')}`
+      errors.difficulty_level = `Must be: ${VALID_DIFFICULTY.join(', ')}`
     } else {
       data.difficulty_level = picked.difficulty_level
+    }
+  }
+
+  if (isCreate || 'level' in picked) {
+    if (
+      typeof picked.level !== 'string' ||
+      !VALID_LEVELS.includes(picked.level as any)
+    ) {
+      errors.level = `Must be: ${VALID_LEVELS.join(', ')}`
+    } else {
+      data.level = picked.level
+    }
+  }
+
+  if ('status' in picked) {
+    if (
+      typeof picked.status !== 'string' ||
+      !VALID_STATUS.includes(picked.status as any)
+    ) {
+      errors.status = `Must be: ${VALID_STATUS.join(', ')}`
+    } else {
+      data.status = picked.status
     }
   }
 
@@ -104,9 +137,7 @@ function validateNoteInput(
       data.pdf_size_kb = null
       data.pdf_uploaded_at = null
     } else {
-      const v = toTrimmedString(picked.pdf_url, 'pdf_url', errors, {
-        max: 500,
-      })
+      const v = toTrimmedString(picked.pdf_url, 'pdf_url', errors, { max: 500 })
       if (v !== null) {
         data.pdf_url = v
         const size = toIntOrNull(picked.pdf_size_kb, 'pdf_size_kb', errors)
@@ -128,37 +159,40 @@ function validateNoteInput(
     const v = toPositiveInt(picked.chapter_num, 'chapter_num', errors)
     if (v !== null) data.chapter_num = v
   }
+
   if ('language' in picked) {
-    const v = toTrimmedString(picked.language, 'language', errors, {
-      min: 2,
-      max: 10,
-    })
-    if (v !== null) data.language = v
+    if (
+      typeof picked.language !== 'string' ||
+      !VALID_LANGUAGES.includes(picked.language as any)
+    ) {
+      errors.language = `Must be: ${VALID_LANGUAGES.join(', ')}`
+    } else {
+      data.language = picked.language
+    }
   }
 
   return { data, errors }
 }
 
-// ═══════════════════════════════════════════════════════
-// Cache invalidation
-// ═══════════════════════════════════════════════════════
-function invalidateNoteCaches(ncertId?: string | null) {
+function invalidateNoteCaches(
+  ncertId?: string | number | null,
+  level?: string
+) {
   try {
     revalidatePath('/ncert', 'layout')
     revalidatePath('/notes', 'layout')
     revalidatePath('/state-boards', 'layout')
     revalidateTag('chapter-notes')
+    revalidateTag('faqs')
     if (ncertId) {
       revalidateTag(`notes:${ncertId}`)
+      if (level) revalidateTag(`notes:${ncertId}:${level}`)
     }
   } catch (err) {
     console.error('[admin/notes] revalidate failed:', err)
   }
 }
 
-// ═══════════════════════════════════════════════════════
-// POST — Create note
-// ═══════════════════════════════════════════════════════
 export async function POST(request: NextRequest) {
   const ctx = await requireAdmin()
   if (isAdminApiError(ctx)) return ctx.response
@@ -169,7 +203,7 @@ export async function POST(request: NextRequest) {
       max: 30,
     })
   ) {
-    return tooManyRequests('बहुत ज़्यादा requests।')
+    return tooManyRequests('Too many requests')
   }
 
   try {
@@ -178,10 +212,9 @@ export async function POST(request: NextRequest) {
     const { data: payload, errors } = validateNoteInput(picked, true)
 
     if (Object.keys(errors).length > 0) {
-      return validationError(errors, 'कुछ fields में error है')
+      return validationError(errors, 'Please fix validation errors')
     }
 
-    // Resolve ncert_id
     const directNcertId = body.ncert_id
     let ncertId: string | null = null
 
@@ -199,11 +232,11 @@ export async function POST(request: NextRequest) {
       if (!classNum || !subject || !chapterNum) {
         return validationError(
           {
-            ...(classNum ? {} : { class: 'class ज़रूरी है' }),
-            ...(subject ? {} : { subject: 'subject ज़रूरी है' }),
-            ...(chapterNum ? {} : { chapter_num: 'chapter_num ज़रूरी है' }),
+            ...(classNum ? {} : { class: 'Class required' }),
+            ...(subject ? {} : { subject: 'Subject required' }),
+            ...(chapterNum ? {} : { chapter_num: 'Chapter required' }),
           },
-          'Chapter identify करने के लिए fields ज़रूरी हैं'
+          'Chapter identification required'
         )
       }
 
@@ -221,13 +254,13 @@ export async function POST(request: NextRequest) {
         return serverError(ncertError.message)
       }
       if (!ncertRow) {
-        return notFound('Chapter नहीं मिला')
+        return notFound('Chapter not found')
       }
       ncertId = ncertRow.id
     }
 
     if (!payload.topic) {
-      return validationError({ topic: 'topic ज़रूरी है' }, 'topic ज़रूरी है')
+      return validationError({ topic: 'Topic required' }, 'Topic required')
     }
 
     const insertPayload: Record<string, unknown> = {
@@ -236,7 +269,13 @@ export async function POST(request: NextRequest) {
       difficulty_level: payload.difficulty_level ?? 'medium',
       content_html: payload.content_html ?? '',
       order_index: payload.order_index ?? 0,
+      level: payload.level ?? 'basic',
+      status: payload.status ?? 'published',
+      word_count: payload.word_count ?? 0,
+      reading_time_min: payload.reading_time_min ?? 1,
+      generated_at: new Date().toISOString(),
     }
+
     if (payload.pdf_url) {
       insertPayload.pdf_url = payload.pdf_url
       insertPayload.pdf_size_kb = payload.pdf_size_kb ?? null
@@ -250,10 +289,16 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[admin/notes POST]', error)
+      if (error.code === '23505') {
+        return validationError(
+          { topic: 'This topic already exists at this level' },
+          'Duplicate topic'
+        )
+      }
       return serverError(error.message)
     }
 
-    invalidateNoteCaches(ncertId)
+    invalidateNoteCaches(ncertId, payload.level as string)
 
     return created(data)
   } catch (err) {
@@ -262,9 +307,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ═══════════════════════════════════════════════════════
-// PUT — Update note
-// ═══════════════════════════════════════════════════════
 export async function PUT(request: NextRequest) {
   const ctx = await requireAdmin()
   if (isAdminApiError(ctx)) return ctx.response
@@ -275,45 +317,43 @@ export async function PUT(request: NextRequest) {
       max: 60,
     })
   ) {
-    return tooManyRequests('बहुत ज़्यादा requests।')
+    return tooManyRequests('Too many requests')
   }
 
   try {
     const body = await request.json()
     const { id, ...rest } = body || {}
 
-    // ✅ INTEGER validation
     const noteId = parseNoteId(id)
     if (noteId === null) {
-      return validationError(
-        { id: 'Positive integer required' },
-        'Invalid note id'
-      )
+      return validationError({ id: 'Positive integer required' }, 'Invalid id')
     }
 
     const picked = pickAllowedFields(rest, ALLOWED_NOTE_FIELDS)
     const { data: updates, errors } = validateNoteInput(picked, false)
 
     if (Object.keys(errors).length > 0) {
-      return validationError(errors, 'कुछ fields में error है')
+      return validationError(errors, 'Please fix validation errors')
     }
 
-    // Strip fields not present in chapter_notes table
     delete updates.class
     delete updates.subject
     delete updates.chapter_num
     delete updates.language
 
     if (Object.keys(updates).length === 0) {
-      return validationError({}, 'No valid fields to update')
+      return validationError({}, 'No fields to update')
     }
 
-    // Fetch ncert_id BEFORE update (for cache invalidation)
     const { data: existing } = await ctx.adminClient
       .from('chapter_notes')
-      .select('ncert_id')
+      .select('ncert_id, level, version')
       .eq('id', noteId)
       .maybeSingle()
+
+    if (updates.content_html) {
+      updates.version = ((existing?.version as number) || 1) + 1
+    }
 
     const { data, error } = await ctx.adminClient
       .from('chapter_notes')
@@ -326,7 +366,10 @@ export async function PUT(request: NextRequest) {
       return serverError(error.message)
     }
 
-    invalidateNoteCaches(existing?.ncert_id ?? data?.[0]?.ncert_id)
+    invalidateNoteCaches(
+      existing?.ncert_id ?? data?.[0]?.ncert_id,
+      existing?.level ?? data?.[0]?.level
+    )
 
     return ok(data)
   } catch (err) {
@@ -335,9 +378,6 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// ═══════════════════════════════════════════════════════
-// GET — List notes
-// ═══════════════════════════════════════════════════════
 export async function GET(request: NextRequest) {
   const ctx = await requireAdmin()
   if (isAdminApiError(ctx)) return ctx.response
@@ -345,16 +385,19 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(
-      200,
-      Math.max(1, parseInt(searchParams.get('limit') || '50', 10))
+      500,
+      Math.max(1, parseInt(searchParams.get('limit') || '200', 10))
     )
+    const level = searchParams.get('level')
+    const status = searchParams.get('status')
 
-    const { data, error, count } = await ctx.adminClient
+    let query = ctx.adminClient
       .from('chapter_notes')
       .select(
         `
         id, ncert_id, topic, difficulty_level, order_index,
-        content_html, created_at,
+        content_html, created_at, level, status,
+        word_count, reading_time_min, version,
         pdf_url, pdf_size_kb, pdf_uploaded_at,
         ncert:ncert_id (id, class, subject, chapter_num, chapter_title, language)
       `,
@@ -363,14 +406,36 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(limit)
 
+    if (level && VALID_LEVELS.includes(level as any)) {
+      query = query.eq('level', level)
+    }
+    if (status && VALID_STATUS.includes(status as any)) {
+      query = query.eq('status', status)
+    }
+
+    const { data, error, count } = await query
+
     if (error) {
       console.error('[admin/notes GET]', error)
       return serverError(error.message)
     }
 
+    const enriched = (data ?? []).map((row: any) => {
+      const html = row.content_html || ''
+      const plain = html
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&[a-z]+;/gi, ' ')
+        .trim()
+      return {
+        ...row,
+        content_excerpt: plain.slice(0, 150),
+        content_length: html.length,
+      }
+    })
+
     const response = NextResponse.json({
       ok: true,
-      data: data ?? [],
+      data: enriched,
       meta: { total: count ?? 0, limit },
     })
     response.headers.set('Cache-Control', 'private, no-store')
@@ -381,9 +446,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ═══════════════════════════════════════════════════════
-// DELETE — Delete note
-// ═══════════════════════════════════════════════════════
 export async function DELETE(request: NextRequest) {
   const ctx = await requireAdmin()
   if (isAdminApiError(ctx)) return ctx.response
@@ -394,26 +456,21 @@ export async function DELETE(request: NextRequest) {
       max: 30,
     })
   ) {
-    return tooManyRequests('बहुत ज़्यादा requests।')
+    return tooManyRequests('Too many requests')
   }
 
   try {
     const { searchParams } = new URL(request.url)
     const rawId = searchParams.get('id')
 
-    // ✅ INTEGER validation
     const noteId = parseNoteId(rawId)
     if (noteId === null) {
-      return validationError(
-        { id: 'Positive integer required' },
-        'Invalid note id'
-      )
+      return validationError({ id: 'Positive integer required' }, 'Invalid id')
     }
 
-    // Fetch ncert_id + pdf_url BEFORE delete
     const { data: existing } = await ctx.adminClient
       .from('chapter_notes')
-      .select('ncert_id, pdf_url')
+      .select('ncert_id, pdf_url, level')
       .eq('id', noteId)
       .maybeSingle()
 
@@ -427,7 +484,7 @@ export async function DELETE(request: NextRequest) {
       return serverError(error.message)
     }
 
-    invalidateNoteCaches(existing?.ncert_id)
+    invalidateNoteCaches(existing?.ncert_id, existing?.level)
 
     return ok({ deleted: true, pdf_url: existing?.pdf_url ?? null })
   } catch (err) {

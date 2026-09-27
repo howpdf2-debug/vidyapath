@@ -56,6 +56,10 @@ interface NoteRow {
   created_at: string
   pdf_url?: string | null
   pdf_size_kb?: number | null
+  level: 'basic' | 'advance' | 'pro'
+  status: 'draft' | 'published' | 'archived'
+  word_count?: number
+  reading_time_min?: number
   ncert?: {
     id: number
     class: number
@@ -84,6 +88,8 @@ interface FormState {
   order_index: number
   pdf_url: string | null
   pdf_size_kb: number | null
+  level: 'basic' | 'advance' | 'pro'
+  status: 'draft' | 'published' | 'archived'
 }
 
 const INITIAL_FORM: FormState = {
@@ -97,6 +103,8 @@ const INITIAL_FORM: FormState = {
   order_index: 0,
   pdf_url: null,
   pdf_size_kb: null,
+  level: 'basic',
+  status: 'published',
 }
 
 const MAX_TOPIC_LENGTH = 300
@@ -120,6 +128,7 @@ export default function AdminNotes() {
   const [deleteTarget, setDeleteTarget] = useState<NoteRow | null>(null)
   const [classFilter, setClassFilter] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState('')
+  const [levelFilter, setLevelFilter] = useState('')
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'topic'>('newest')
   const [showFilters, setShowFilters] = useState(false)
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
@@ -267,6 +276,8 @@ export default function AdminNotes() {
       order_index: form.order_index,
       pdf_url: form.pdf_url,
       pdf_size_kb: form.pdf_size_kb,
+      level: form.level,
+      status: form.status,
     }
 
     const method = editingId ? 'PUT' : 'POST'
@@ -281,7 +292,6 @@ export default function AdminNotes() {
       const result = await res.json()
 
       if (res.ok) {
-        // ✅ Agar edit mein PDF replace hua — purani file delete karo
         if (
           editingId &&
           originalPdfUrl &&
@@ -300,7 +310,6 @@ export default function AdminNotes() {
       } else {
         toast.error(result.error || 'Failed to save note')
 
-        // ✅ Agar naya PDF upload hua tha lekin save fail — cleanup
         if (!editingId && form.pdf_url) {
           await deletePdfFromStorage(form.pdf_url)
         }
@@ -326,6 +335,8 @@ export default function AdminNotes() {
       order_index: n.order_index || 0,
       pdf_url: n.pdf_url || null,
       pdf_size_kb: n.pdf_size_kb || null,
+      level: n.level || 'basic',
+      status: n.status || 'published',
     })
     setHtmlMode(/<[a-z][\s\S]*>/i.test(n.content_html || ''))
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -343,9 +354,10 @@ export default function AdminNotes() {
       difficulty_level: n.difficulty_level || 'medium',
       content_html: n.content_html || '',
       order_index: n.order_index || 0,
-      // ✅ Duplicate में PDF copy नहीं करेंगे (दोनों notes एक ही PDF share करेंगे)
       pdf_url: null,
       pdf_size_kb: null,
+      level: n.level || 'basic',
+      status: 'draft',
     })
     setHtmlMode(/<[a-z][\s\S]*>/i.test(n.content_html || ''))
     toast.success('Duplicated — अब edit करें (PDF अलग से upload करें)')
@@ -363,7 +375,6 @@ export default function AdminNotes() {
       const result = await res.json()
 
       if (res.ok) {
-        // ✅ PDF भी storage से delete करें
         if (pdfUrl) {
           await deletePdfFromStorage(pdfUrl)
         }
@@ -382,7 +393,6 @@ export default function AdminNotes() {
   }
 
   const cancelEdit = async () => {
-    // ✅ Agar edit में नया PDF upload हुआ था लेकिन save नहीं किया
     if (editingId && form.pdf_url && form.pdf_url !== originalPdfUrl) {
       await deletePdfFromStorage(form.pdf_url)
     }
@@ -445,15 +455,23 @@ export default function AdminNotes() {
     if (difficultyFilter) {
       result = result.filter((n) => n.difficulty_level === difficultyFilter)
     }
+    if (levelFilter) {
+      result = result.filter((n) => n.level === levelFilter)
+    }
     return [...result].sort((a, b) => {
       if (sortBy === 'oldest')
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       if (sortBy === 'topic') return a.topic.localeCompare(b.topic)
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
-  }, [notes, debouncedSearch, classFilter, difficultyFilter, sortBy])
+  }, [notes, debouncedSearch, classFilter, difficultyFilter, levelFilter, sortBy])
 
-  const hasActiveFilters = !!(classFilter || difficultyFilter || search)
+  const hasActiveFilters = !!(
+    classFilter ||
+    difficultyFilter ||
+    levelFilter ||
+    search
+  )
   const topicLength = form.topic.length
   const contentLength = form.content_html.length
 
@@ -525,7 +543,7 @@ export default function AdminNotes() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Row 1 */}
+          {/* Row 1 — Class / Subject / Chapter / Language */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Field label="Class *">
               <select
@@ -587,7 +605,62 @@ export default function AdminNotes() {
             </Field>
           </div>
 
-          {/* Row 2 */}
+          {/* Row 1.5 — Level + Status */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field
+              label={
+                <span className="inline-flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5" /> Level *
+                </span>
+              }
+            >
+              <div className="grid grid-cols-3 gap-2">
+                {(['basic', 'advance', 'pro'] as const).map((lvl) => {
+                  const labels = {
+                    basic: { emoji: '🟢', label: 'Basic' },
+                    advance: { emoji: '🟠', label: 'Advance' },
+                    pro: { emoji: '🔴', label: 'Pro' },
+                  }[lvl]
+                  const active = form.level === lvl
+                  return (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setForm({ ...form, level: lvl })}
+                      aria-pressed={active}
+                      className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 transition text-xs font-semibold ${
+                        active
+                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <span className="text-base">{labels.emoji}</span>
+                      <span>{labels.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            <Field label="Status">
+              <select
+                value={form.status}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    status: e.target.value as 'draft' | 'published' | 'archived',
+                  })
+                }
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition"
+              >
+                <option value="draft">📝 Draft</option>
+                <option value="published">✅ Published</option>
+                <option value="archived">📦 Archived</option>
+              </select>
+            </Field>
+          </div>
+
+          {/* Row 2 — Topic / Difficulty / Order */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field
               label={
@@ -794,7 +867,19 @@ export default function AdminNotes() {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+            <Field label="Level">
+              <select
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+              >
+                <option value="">All Levels</option>
+                <option value="basic">🟢 Basic</option>
+                <option value="advance">🟠 Advance</option>
+                <option value="pro">🔴 Pro</option>
+              </select>
+            </Field>
             <Field label="Class">
               <select
                 value={classFilter}
@@ -866,6 +951,39 @@ export default function AdminNotes() {
                       <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
                         Class {n.ncert?.class} • {n.ncert?.subject} • Ch {n.ncert?.chapter_num}
                       </span>
+
+                      {/* ✅ Level badge */}
+                      {n.level && (
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            n.level === 'basic'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : n.level === 'advance'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
+                          }`}
+                        >
+                          {n.level === 'basic'
+                            ? '🟢 Basic'
+                            : n.level === 'advance'
+                            ? '🟠 Advance'
+                            : '🔴 Pro'}
+                        </span>
+                      )}
+
+                      {/* ✅ Status badge */}
+                      {n.status === 'draft' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          📝 Draft
+                        </span>
+                      )}
+                      {n.status === 'archived' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          📦 Archived
+                        </span>
+                      )}
+
+                      {/* Difficulty badge */}
                       <span
                         className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                           n.difficulty_level === 'easy'
@@ -877,6 +995,7 @@ export default function AdminNotes() {
                       >
                         {n.difficulty_level}
                       </span>
+
                       {n.pdf_url && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 inline-flex items-center gap-1">
                           <FileText className="w-2.5 h-2.5" />
@@ -899,6 +1018,8 @@ export default function AdminNotes() {
                     )}
                     <p className="text-xs text-slate-400 mt-1">
                       Order: {n.order_index} • {new Date(n.created_at).toLocaleDateString('en-IN')} • {Math.ceil((n.content_length || 0) / 1024)} KB
+                      {n.word_count ? ` • ${n.word_count} words` : ''}
+                      {n.reading_time_min ? ` • ~${n.reading_time_min} min` : ''}
                     </p>
                   </div>
 

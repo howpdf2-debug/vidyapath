@@ -48,7 +48,7 @@ function formatRelative(iso: string | null): string {
     const t = new Date(iso).getTime()
     if (isNaN(t)) return ''
     const diff = Date.now() - t
-    if (diff < 0) return '' // future dates
+    if (diff < 0) return ''
     const min = Math.floor(diff / 60000)
     if (min < 1) return 'just now'
     if (min < 60) return `${min}m ago`
@@ -143,7 +143,6 @@ export function NoteCard({ note, language = 'en' }: NoteCardProps) {
         url: note.pdf_url,
       }
 
-      // ✅ Type-safe: standard browser API detection
       const nav = typeof navigator !== 'undefined' ? navigator : null
       const canShare = !!nav && typeof nav.share === 'function'
       const canCopy =
@@ -166,9 +165,11 @@ export function NoteCard({ note, language = 'en' }: NoteCardProps) {
 
   return (
     <article
-      className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md motion-safe:transition-shadow p-5 sm:p-6"
+      id={`note-${note.id}`}
+      className="w-full max-w-full min-w-0 overflow-hidden bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md motion-safe:transition-shadow p-4 sm:p-6"
       aria-labelledby={`note-${note.id}-title`}
     >
+      {/* ═══════ HEADER ═══════ */}
       <header className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div
@@ -181,14 +182,15 @@ export function NoteCard({ note, language = 'en' }: NoteCardProps) {
               <FileText className="w-5 h-5" />
             )}
           </div>
+
           <div className="min-w-0 flex-1">
             <h3
               id={`note-${note.id}-title`}
-              className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white break-words"
-              title={note.topic}
+              className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white break-words line-clamp-3"
             >
               {note.topic}
             </h3>
+
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500 dark:text-slate-400">
               {createdAt && (
                 <span className="inline-flex items-center gap-1">
@@ -211,7 +213,8 @@ export function NoteCard({ note, language = 'en' }: NoteCardProps) {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
+
+        <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
           {difficultyLabel && (
             <span
               className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${difficulty!.cls}`}
@@ -231,39 +234,45 @@ export function NoteCard({ note, language = 'en' }: NoteCardProps) {
         </div>
       </header>
 
+      {/* ═══════ CONTENT — overflow-safe wrapper ═══════ */}
       {hasHtml && (
-        <div className="prose-sm max-w-none">
+        <div className="w-full max-w-full min-w-0 overflow-hidden break-words">
           <NotesContent html={note.content_html!} />
         </div>
       )}
 
+      {/* ═══════ PDF-ONLY STATE ═══════ */}
       {!hasHtml && hasPdf && (
-        <div className="p-6 rounded-xl border-2 border-dashed border-rose-200 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 text-center">
+        <div className="p-5 sm:p-6 rounded-xl border-2 border-dashed border-rose-200 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 text-center">
           <div className="inline-flex w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 items-center justify-center mb-3 shadow-lg shadow-rose-500/20">
             <FileImage className="w-6 h-6 text-white" aria-hidden="true" />
           </div>
-          <p className="font-bold text-slate-900 dark:text-white mb-1">
+          <p className="font-bold text-slate-900 dark:text-white mb-1 break-words">
             {t.pdfAvailable}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
             {pdfSize ? `${pdfSize} • ` : ''}PDF Document
             {pdfUploaded ? ` • ${pdfUploaded}` : ''}
           </p>
         </div>
       )}
 
+      {/* ═══════ EMPTY STATE ═══════ */}
       {isEmpty && (
-        <div className="flex items-center gap-2 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
-          <AlertCircle
-            className="w-4 h-4 text-slate-400 flex-shrink-0"
-            aria-hidden="true"
-          />
+        <div className="flex flex-col items-center gap-2 p-6 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-center">
+          <div className="inline-flex w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center">
+            <AlertCircle
+              className="w-5 h-5 text-slate-400"
+              aria-hidden="true"
+            />
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 italic">
             {t.empty}
           </p>
         </div>
       )}
 
+      {/* ═══════ PDF ACTIONS ═══════ */}
       {hasPdf && (
         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
           <a
@@ -276,6 +285,7 @@ export function NoteCard({ note, language = 'en' }: NoteCardProps) {
             <ExternalLink className="w-4 h-4" aria-hidden="true" />
             {t.openPdf}
           </a>
+
           <a
             href={note.pdf_url!}
             download
@@ -285,6 +295,7 @@ export function NoteCard({ note, language = 'en' }: NoteCardProps) {
             <Download className="w-4 h-4" aria-hidden="true" />
             {t.download}
           </a>
+
           <button
             type="button"
             onClick={handleShare}

@@ -20,8 +20,8 @@ function keyOf(prefix: string, params: Record<string, unknown>): string {
   return `${prefix}:${sorted}`
 }
 
-const TTL_POPULATED = 300
-const TTL_EMPTY = 60
+const TTL_POPULATED = 60   // 5 min → 1 min
+const TTL_EMPTY = 15       // 1 min → 15 sec
 
 export const getCachedChapterList = (
   classNum: number,
@@ -60,36 +60,33 @@ export const getCachedChapterList = (
     }
   )()
 
-export const getCachedChapterNotes = (ncertId: number) =>
-  unstable_cache(
-    async (): Promise<{ data: NoteRow[]; error: string | null }> => {
-      try {
-        const supabase = createServerClient()
-        const { data, error } = await supabase
-          .from('chapter_notes')
-          .select(
-            'id, topic, content_html, pdf_url, pdf_size_kb, pdf_uploaded_at, difficulty_level, created_at, order_index'
-          )
-          .eq('ncert_id', ncertId)
-          .order('order_index', { ascending: true })
+// ✅ Direct query — no cache (notes change often)
+export const getCachedChapterNotes = async (
+  ncertId: number
+): Promise<{ data: NoteRow[]; error: string | null }> => {
+  try {
+    const supabase = createServerClient()
+    const { data, error } = await supabase
+      .from('chapter_notes')
+      .select(
+        'id, ncert_id, topic, content_html, pdf_url, pdf_size_kb, pdf_uploaded_at, difficulty_level, created_at, order_index, level, status, word_count, reading_time_min, version, reviewed_by, generated_at'
+      )
+      .eq('ncert_id', ncertId)
+      .eq('status', 'published')
+      .order('level', { ascending: true })
+      .order('order_index', { ascending: true })
 
-        if (error) {
-          console.error('[cache:notes] query error:', error.message)
-          return { data: [], error: error.message }
-        }
-        return { data: (data ?? []) as NoteRow[], error: null }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error'
-        console.error('[cache:notes] unexpected:', msg)
-        return { data: [], error: msg }
-      }
-    },
-    [keyOf('chapter-notes', { ncertId })],
-    {
-      revalidate: TTL_POPULATED,
-      tags: ['chapter-notes', `notes:${ncertId}`],
+    if (error) {
+      console.error('[notes] query error:', error.message)
+      return { data: [], error: error.message }
     }
-  )()
+    return { data: (data ?? []) as NoteRow[], error: null }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[notes] unexpected:', msg)
+    return { data: [], error: msg }
+  }
+}
 
 export const getCachedNotesPreview = (ncertId: number) =>
   unstable_cache(

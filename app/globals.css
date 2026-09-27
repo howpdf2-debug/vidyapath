@@ -563,45 +563,131 @@ body {
 */
 
 /* Tables */
+/* ═══════════════════════════════════════════════════════
+   P2 FIX: Tables — no overflow, responsive, polished
+   ═══════════════════════════════════════════════════════ */
 .note-content table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1rem 0;
+  max-width: 100%;
+  table-layout: fixed;
+  margin: 1.5rem 0;
   font-size: 0.8125rem;
-  min-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(15, 23, 42, 0.04);
 }
-@media (min-width: 640px) {
-  .note-content table { font-size: 0.875rem; }
-}
+
 .note-content th,
 .note-content td {
-  padding: 6px 8px;
-  border: 1px solid #e5e7eb;
-  text-align: left;
-  vertical-align: top;
+  padding: 10px 8px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+  vertical-align: middle;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.5;
 }
-@media (min-width: 640px) {
-  .note-content th,
-  .note-content td { padding: 8px 12px; }
-}
-.note-content th {
-  background: #f9fafb;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.dark .note-content th,
-.dark .note-content td { border-color: #374151; }
-.dark .note-content th { background: #1f2937; }
 
-.note-content .table-wrap,
-.note-content > table {
+.note-content th {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.8125rem;
+  padding: 12px 8px;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.note-content tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.note-content tbody tr:hover {
+  background: #f1f5f9;
+  transition: background 150ms ease;
+}
+
+/* Dark mode */
+.dark .note-content th,
+.dark .note-content td {
+  border-color: #334155;
+}
+.dark .note-content th {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-bottom-color: #475569;
+}
+.dark .note-content tbody tr:nth-child(even) {
+  background: #1e293b;
+}
+.dark .note-content tbody tr:hover {
+  background: #334155;
+}
+
+/* Extra-wide tables fallback (safety) */
+.note-content table:has(th:nth-child(7)) {
   display: block;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
 }
-@media (min-width: 640px) {
-  .note-content .table-wrap,
-  .note-content > table { display: table; }
+.note-content table:has(th:nth-child(7)) th,
+.note-content table:has(th:nth-child(7)) td {
+  white-space: normal;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Note content container — overflow-safe
+   ═══════════════════════════════════════════════════════ */
+.note-content {
+  color: inherit;
+  line-height: 1.75;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 0.9375rem;
+}
+
+.note-content > *:first-child { margin-top: 0; }
+.note-content > *:last-child { margin-bottom: 0; }
+
+/* Better visual separation for sections */
+.note-content h2 {
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 0.5rem;
+  margin-top: 2rem;
+}
+.dark .note-content h2 { border-bottom-color: #334155; }
+
+/* SVG diagrams — no overflow */
+.note-content svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Lists — better spacing */
+.note-content ul,
+.note-content ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.note-content li {
+  margin: 0.4rem 0;
+  line-height: 1.7;
+}
+
+/* Code blocks */
+.note-content pre,
+.note-content code {
+  max-width: 100%;
+  overflow-x: auto;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .note-content img {
@@ -820,4 +906,367 @@ body {
   details.faq-item > summary svg {
     display: none !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SLIDE READING AREA — Warm, eye-friendly, distraction-free
+   Inspired by Kindle / physical book — reduces eye strain
+   ═══════════════════════════════════════════════════════════════ */
+
+.slide-reading-area {
+  background: #faf7f2;
+  color: #3d3326;
+  border: 1px solid #e8dfd0;
+  border-radius: 16px;
+  padding: 2rem 2.5rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.slide-reading-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 0% 0%, rgba(212, 197, 176, 0.15), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(212, 197, 176, 0.1), transparent 40%);
+  pointer-events: none;
+}
+
+.slide-reading-area > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Dark mode ─── */
+.dark .slide-reading-area {
+  background: #1c1a17;
+  color: #e8e1d4;
+  border-color: #2d2620;
+}
+
+.dark .slide-reading-area::before {
+  background: 
+    radial-gradient(circle at 0% 0%, rgba(80, 65, 45, 0.15), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(80, 65, 45, 0.1), transparent 40%);
+}
+
+/* ─── Mobile responsive ─── */
+@media (max-width: 640px) {
+  .slide-reading-area {
+    padding: 1.25rem 1rem;
+    border-radius: 12px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Typography inside slide reading area
+   ═══════════════════════════════════════════════════════════════ */
+
+.slide-reading-area h2 {
+  color: #1e4e8c;
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #d4c5b0;
+  margin: 0 0 1.25rem;
+  letter-spacing: -0.01em;
+  font-family: var(--font-hind), 'Noto Sans Devanagari', system-ui, sans-serif;
+}
+
+.dark .slide-reading-area h2 {
+  color: #93c5fd;
+  border-bottom-color: #3a3128;
+}
+
+.slide-reading-area h3 {
+  color: #2c5aa0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 1.5rem 0 0.75rem;
+  font-family: var(--font-hind), 'Noto Sans Devanagari', system-ui, sans-serif;
+}
+
+.dark .slide-reading-area h3 {
+  color: #a5b4fc;
+}
+
+.slide-reading-area p,
+.slide-reading-area li {
+  color: #3d3326;
+  font-size: 1.0625rem;
+  line-height: 1.85;
+  margin-bottom: 0.875rem;
+  letter-spacing: 0.003em;
+  font-family: var(--font-hind), 'Noto Sans Devanagari', Georgia, serif;
+}
+
+.dark .slide-reading-area p,
+.dark .slide-reading-area li {
+  color: #e8e1d4;
+}
+
+.slide-reading-area ul,
+.slide-reading-area ol {
+  padding-left: 1.75rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.slide-reading-area li {
+  margin-bottom: 0.5rem;
+}
+
+.slide-reading-area strong {
+  color: #1e4e8c;
+  font-weight: 700;
+}
+
+.dark .slide-reading-area strong {
+  color: #93c5fd;
+}
+
+.slide-reading-area mark {
+  background: #fef3c7;
+  color: #3d3326;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.dark .slide-reading-area mark {
+  background: #7c5c1a;
+  color: #fef3c7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Tables in slide — bulletproof against malformed HTML
+   ═══════════════════════════════════════════════════════════════ */
+
+.slide-reading-area table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  background: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(61, 51, 38, 0.06);
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.dark .slide-reading-area table {
+  background: #2a2620;
+  box-shadow: none;
+}
+
+.slide-reading-area th,
+.slide-reading-area td {
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  border: 1px solid #e8dfd0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  min-width: 0;
+}
+
+.slide-reading-area th {
+  background: #f1e9dd;
+  color: #1e4e8c;
+  font-weight: 700;
+  padding: 12px 8px;
+  font-size: 0.9375rem;
+}
+
+.dark .slide-reading-area th {
+  background: #3a3128;
+  color: #93c5fd;
+  border-color: #4d4339;
+}
+
+.dark .slide-reading-area td {
+  border-color: #3a3128;
+}
+
+.slide-reading-area tbody tr:nth-child(even) td {
+  background: #fdfbf7;
+}
+
+.dark .slide-reading-area tbody tr:nth-child(even) td {
+  background: #26211a;
+}
+
+.slide-reading-area tbody tr:hover td {
+  background: #f5efe5;
+}
+
+.dark .slide-reading-area tbody tr:hover td {
+  background: #332d24;
+}
+
+/* Single-cell malformed table — treat as block, allow scroll */
+.slide-reading-area table:has(td:only-child):has(th:first-child ~ th) {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SVG diagrams
+   ═══════════════════════════════════════════════════════════════ */
+
+.slide-reading-area svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.5rem auto;
+  background: #ffffff;
+  border: 1px solid #e8dfd0;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.dark .slide-reading-area svg {
+  background: #2a2620;
+  border-color: #3a3128;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Content boxes — readable on warm background
+   ═══════════════════════════════════════════════════════════════ */
+
+.slide-reading-area .formula,
+.slide-reading-area .formula-box {
+  background: #ecfdf5;
+  border-left: 4px solid #059669;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  border-radius: 0 8px 8px 0;
+  font-weight: 500;
+  color: #064e3b;
+}
+
+.dark .slide-reading-area .formula,
+.dark .slide-reading-area .formula-box {
+  background: #052e1a;
+  color: #a7f3d0;
+  border-left-color: #34d399;
+}
+
+.slide-reading-area .q {
+  background: #ffffff;
+  border: 1px solid #e8dfd0;
+  border-left: 4px solid #059669;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  border-radius: 0 12px 12px 0;
+}
+
+.dark .slide-reading-area .q {
+  background: #26211a;
+  border-color: #3a3128;
+  border-left-color: #34d399;
+}
+
+.slide-reading-area .summary {
+  background: #fdfbf7;
+  border: 2px solid #1e4e8c;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.dark .slide-reading-area .summary {
+  background: #26211a;
+  border-color: #93c5fd;
+}
+
+.slide-reading-area .note,
+.slide-reading-area blockquote {
+  background: #f1e9dd;
+  border-left: 4px solid #a16207;
+  padding: 0.75rem 1rem;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.9375rem;
+  color: #713f12;
+  margin: 1rem 0;
+}
+
+.dark .slide-reading-area .note,
+.dark .slide-reading-area blockquote {
+  background: #2d2416;
+  color: #fcd34d;
+  border-left-color: #f59e0b;
+}
+
+.slide-reading-area .tag {
+  display: inline-block;
+  background: #059669;
+  color: #ffffff;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-right: 5px;
+  font-weight: 600;
+}
+
+.slide-reading-area .hard-tag {
+  background: #c53030;
+}
+
+.slide-reading-area .hard {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  border-radius: 0 12px 12px 0;
+}
+
+.dark .slide-reading-area .hard {
+  background: #2d1515;
+  border-color: #7f1d1d;
+  border-left-color: #f87171;
+}
+
+.slide-reading-area hr {
+  border: none;
+  border-top: 1px dashed #d4c5b0;
+  margin: 1.5rem 0;
+}
+
+.dark .slide-reading-area hr {
+  border-top-color: #3a3128;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Notes content inside slide — reset padding since we're on cream bg
+   ═══════════════════════════════════════════════════════════════ */
+
+.slide-reading-area .note-content {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.slide-reading-area .note-content > *:first-child {
+  margin-top: 0;
+}
+
+.slide-reading-area .note-content > *:last-child {
+  margin-bottom: 0;
 }

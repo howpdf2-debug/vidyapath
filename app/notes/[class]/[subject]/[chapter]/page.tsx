@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import {
   FileText,
   Download,
@@ -18,7 +19,7 @@ import { BookmarkButton } from '@/components/BookmarkButton'
 import { ShareButton } from '@/components/ShareButton'
 import { CommentSection } from '@/components/CommentSection'
 import { ProgressButton } from '@/app/ncert/[class]/[subject]/[chapter]/ProgressButton'
-import { NoteCard } from '@/components/notes/NoteCard'
+import { NotesLevelTabs } from '@/components/notes/NotesLevelTabs'
 import type { Note } from '@/lib/db-types'
 import { ChapterNavigation } from '@/components/notes/ChapterNavigation'
 import { isUserConfirmed } from '@/lib/auth'
@@ -121,7 +122,6 @@ export default async function NotesChapterPage({
   const subjectName = subject
   const rawSubject = params.subject
 
-  // ✅ Cached chapter list
   const { data: chapterList, error: listErr } = await getCachedChapterList(
     classNum,
     subject,
@@ -145,13 +145,11 @@ export default async function NotesChapterPage({
   const makeHref = (chNum: number) =>
     `/notes/${classNum}/${rawSubject}/${chNum}?lang=${lang}`
 
-  // ✅ Session + bookmark (NOT cached — per-user)
   const session = await getServerSession()
   const isLoggedIn = !!session?.user && isUserConfirmed(session.user)
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
 
-  // ✅ Cached data + live bookmark + FAQ — parallel
   const [notesRes, videosRes, bookmarkRes, faqs] = await Promise.all([
     getCachedChapterNotes(chapter.id),
     getCachedChapterVideos(chapter.id, lang),
@@ -166,10 +164,9 @@ export default async function NotesChapterPage({
           data: { id: string } | null
           error: null
         }),
-    // ✅ P3.8: FAQ fetch — parallel, zero extra latency
     chapter?.id
-  ? getChapterFaqs(chapter.id, classNum, subjectName, chapterNum)
-  : Promise.resolve({ en: [], hi: [] }),
+      ? getChapterFaqs(chapter.id, classNum, subjectName, chapterNum)
+      : Promise.resolve({ en: [], hi: [] }),
   ])
 
   if (notesRes.error) {
@@ -179,9 +176,13 @@ export default async function NotesChapterPage({
     console.error('[notes-page] videos failed:', videosRes.error)
   }
 
-  const notes = (notesRes.data ?? []) as Note[]
+  const allNotes = (notesRes.data ?? []) as Note[]
   const videos = videosRes.data ?? []
   const isBookmarked = !!bookmarkRes.data
+
+  // ✅ G5 FIX: Only PUBLISHED notes counted for user-facing
+  const publishedNotes = allNotes.filter((n) => n.status === 'published')
+  const hasNotes = publishedNotes.length > 0
 
   const chapterTitle = chapter.chapter_title?.trim() || `Chapter ${chapterNum}`
 
@@ -189,10 +190,8 @@ export default async function NotesChapterPage({
     chapter.pdf_url || getPdfUrl(chapter.book_code, classNum, chapterNum)
   const pdfUrl = safePdfUrl(rawPdfUrl)
 
-  const hasNotes = notes.length > 0
   const canonicalUrl = `${SITE_URL}/notes/${params.class}/${params.subject}/${params.chapter}`
 
-  // ✅ Base LearningResource JSON-LD (unchanged)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LearningResource',
@@ -203,7 +202,6 @@ export default async function NotesChapterPage({
     url: canonicalUrl,
   }
 
-  // ✅ P3.8: FAQPage schema — page-lang primary, other lang fallback
   const primaryFaqs =
     lang === 'hi'
       ? faqs.hi.length > 0
@@ -221,7 +219,6 @@ export default async function NotesChapterPage({
         dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
-      {/* ✅ P3.8: Separate FAQPage script (valid per schema.org — multiple scripts allowed) */}
       {faqSchema && (
         <script
           type="application/ld+json"
@@ -282,7 +279,7 @@ export default async function NotesChapterPage({
                 </h1>
                 {hasNotes && (
                   <p className="text-xs text-white/70 mt-2">
-                    📚 {notes.length}{' '}
+                    📚 {publishedNotes.length}{' '}
                     {lang === 'hi' ? 'notes उपलब्ध' : 'notes available'}
                   </p>
                 )}
@@ -339,9 +336,27 @@ export default async function NotesChapterPage({
               Chapter Notes
             </div>
 
-            {notes.map((note) => (
-              <NoteCard key={note.id} note={note} language={lang} />
-            ))}
+            {/* ✅ G4 FIX: Suspense required for useSearchParams in NotesLevelTabs */}
+            <Suspense
+              fallback={
+                <div className="space-y-5" aria-hidden="true">
+                  <div className="flex gap-2">
+                    <div className="h-11 w-32 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                    <div className="h-11 w-32 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                    <div className="h-11 w-32 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  </div>
+                  <div className="h-64 rounded-2xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                </div>
+              }
+            >
+              <NotesLevelTabs
+                notes={publishedNotes}
+                chapterId={chapter.id}
+                language={lang}
+                userId={session?.user?.id ?? null}
+                defaultLevel="basic"
+              />
+            </Suspense>
           </div>
         ) : (
           <NotesSection
@@ -355,7 +370,6 @@ export default async function NotesChapterPage({
           />
         )}
 
-        {/* ✅ P3.8: FAQ Section — bilingual aware (page-lang primary) */}
         <FaqSection faqs={faqs} lang={lang} />
 
         <CommentSection chapterId={chapter.id} />
