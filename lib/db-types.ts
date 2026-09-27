@@ -56,7 +56,7 @@ export const LEVEL_META: Record<
     gradient: 'from-amber-500 to-orange-500',
   },
   pro: {
-    label: 'Pro Advance',
+    label: 'Pro',
     labelHi: 'प्रो एडवांस',
     emoji: '🔴',
     color: 'text-rose-700 dark:text-rose-300',

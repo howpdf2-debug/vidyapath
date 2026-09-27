@@ -32,6 +32,9 @@ import {
   getCachedChapterVideos,
   getChapterFaqs,
 } from '@/lib/cached-queries'
+// ─── Phase 5C-4: Chapter level-wise PDFs ───
+import ChapterPdfSection from '@/components/ChapterPdfSection'
+import { fetchChapterPdfs, type ChapterPdfRow } from '@/lib/chapter-pdfs'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,24 +153,34 @@ export default async function NotesChapterPage({
   const supabaseAuth = isLoggedIn ? createServerClientWithCookies() : null
   const currentUserId = session?.user?.id
 
-  const [notesRes, videosRes, bookmarkRes, faqs] = await Promise.all([
-    getCachedChapterNotes(chapter.id),
-    getCachedChapterVideos(chapter.id, lang),
-    supabaseAuth && currentUserId
-      ? supabaseAuth
-          .from('bookmarks')
-          .select('id')
-          .eq('user_id', currentUserId)
-          .eq('ncert_id', chapter.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null } as {
-          data: { id: string } | null
-          error: null
-        }),
-    chapter?.id
-      ? getChapterFaqs(chapter.id, classNum, subjectName, chapterNum)
-      : Promise.resolve({ en: [], hi: [] }),
-  ])
+  // ─── Phase 5C-4: Public PDF fetch (RLS allows anon read) ───
+  const supabaseForPdfs = supabaseAuth ?? createServerClientWithCookies()
+
+  const [notesRes, videosRes, bookmarkRes, faqs, chapterPdfs] =
+    await Promise.all([
+      getCachedChapterNotes(chapter.id),
+      getCachedChapterVideos(chapter.id, lang),
+      supabaseAuth && currentUserId
+        ? supabaseAuth
+            .from('bookmarks')
+            .select('id')
+            .eq('user_id', currentUserId)
+            .eq('ncert_id', chapter.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null } as {
+            data: { id: string } | null
+            error: null
+          }),
+      chapter?.id
+        ? getChapterFaqs(chapter.id, classNum, subjectName, chapterNum)
+        : Promise.resolve({ en: [], hi: [] }),
+      chapter?.id
+        ? fetchChapterPdfs(supabaseForPdfs, chapter.id).catch((err) => {
+            console.error('[notes-page] pdfs fetch failed:', err)
+            return [] as ChapterPdfRow[]
+          })
+        : Promise.resolve([] as ChapterPdfRow[]),
+    ])
 
   if (notesRes.error) {
     console.error('[notes-page] notes failed:', notesRes.error)
@@ -180,7 +193,6 @@ export default async function NotesChapterPage({
   const videos = videosRes.data ?? []
   const isBookmarked = !!bookmarkRes.data
 
-  // ✅ G5 FIX: Only PUBLISHED notes counted for user-facing
   const publishedNotes = allNotes.filter((n) => n.status === 'published')
   const hasNotes = publishedNotes.length > 0
 
@@ -192,6 +204,7 @@ export default async function NotesChapterPage({
 
   const canonicalUrl = `${SITE_URL}/notes/${params.class}/${params.subject}/${params.chapter}`
 
+  // ─── Phase 5C-4: Extended JSON-LD with hasPart ───
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LearningResource',
@@ -200,6 +213,15 @@ export default async function NotesChapterPage({
     educationalLevel: `Class ${classNum}`,
     inLanguage: lang === 'hi' ? 'hi' : 'en',
     url: canonicalUrl,
+    ...(chapterPdfs.length > 0 && {
+      hasPart: chapterPdfs.map((pdf) => ({
+        '@type': 'DigitalDocument',
+        name: `${chapterTitle} — ${pdf.level}`,
+        encodingFormat: 'application/pdf',
+        contentUrl: pdf.pdf_url,
+        ...(pdf.pdf_size_kb && { fileSize: `${pdf.pdf_size_kb}KB` }),
+      })),
+    }),
   }
 
   const primaryFaqs =
@@ -316,6 +338,15 @@ export default async function NotesChapterPage({
           </div>
         </div>
 
+        {/* ═══════════════════════════════════════════════════════
+            Phase 5C-4: Level-wise Chapter PDFs Section
+        ═══════════════════════════════════════════════════════ */}
+        <ChapterPdfSection
+          pdfs={chapterPdfs}
+          lang={lang}
+          chapterTitle={chapterTitle}
+        />
+
         {videos.length > 0 && (
           <VideoSection
             chapterId={chapter.id}
@@ -336,7 +367,6 @@ export default async function NotesChapterPage({
               Chapter Notes
             </div>
 
-            {/* ✅ G4 FIX: Suspense required for useSearchParams in NotesLevelTabs */}
             <Suspense
               fallback={
                 <div className="space-y-5" aria-hidden="true">
