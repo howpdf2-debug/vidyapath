@@ -63,6 +63,16 @@ function safeJsonLd(data: unknown): string {
     .replace(/&/g, '\\u0026')
 }
 
+// ─── Pluralization helper ───
+function pluralize(
+  n: number,
+  lang: 'hi' | 'en',
+  forms: { hi: [string, string]; en: [string, string] }
+): string {
+  const [singular, plural] = lang === 'hi' ? forms.hi : forms.en
+  return n === 1 ? singular : plural
+}
+
 // ==================== SEO ====================
 export async function generateMetadata({
   params,
@@ -234,6 +244,38 @@ export default async function NotesChapterPage({
         : faqs.hi
   const faqSchema = buildFaqPageSchema(primaryFaqs)
 
+  // ─── i18n strings ───
+  const t =
+    lang === 'hi'
+      ? {
+          backToChapters: 'अध्यायों पर वापस',
+          home: 'होम',
+          notesCrumb: 'नोट्स',
+          chapterCrumb: 'अध्याय',
+          notesAvailable: (n: number) =>
+            `${n} ${pluralize(n, 'hi', {
+              hi: ['नोट', 'नोट्स'],
+              en: ['note', 'notes'],
+            })} उपलब्ध`,
+          chapterNotesHeading: 'अध्याय नोट्स',
+          ncertBookPdf: 'NCERT किताब PDF',
+          book: 'किताब',
+        }
+      : {
+          backToChapters: 'Back to chapters',
+          home: 'Home',
+          notesCrumb: 'Notes',
+          chapterCrumb: 'Chapter',
+          notesAvailable: (n: number) =>
+            `${n} ${pluralize(n, 'en', {
+              hi: ['नोट', 'नोट्स'],
+              en: ['note', 'notes'],
+            })} available`,
+          chapterNotesHeading: 'Chapter Notes',
+          ncertBookPdf: 'NCERT Book PDF',
+          book: 'Book',
+        }
+
   return (
     <>
       <script
@@ -256,32 +298,32 @@ export default async function NotesChapterPage({
       <div className="space-y-6">
         <BackButton
           href={`/notes/${classNum}/${rawSubject}?lang=${lang}`}
-          label="Back to chapters"
+          label={t.backToChapters}
           language={lang}
         />
 
         <nav className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
           <Link href="/" className="hover:text-indigo-600 flex items-center gap-1">
-            <Home className="w-3.5 h-3.5" /> Home
+            <Home className="w-3.5 h-3.5" aria-hidden="true" /> {t.home}
           </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
           <Link href="/notes" className="hover:text-indigo-600">
-            Notes
+            {t.notesCrumb}
           </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
           <Link href={`/notes/${classNum}`} className="hover:text-indigo-600">
             Class {classNum}
           </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
           <Link
             href={`/notes/${classNum}/${rawSubject}`}
             className="hover:text-indigo-600"
           >
             {subjectName}
           </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="text-slate-700 dark:text-slate-300 font-medium">
-            Chapter {chapterNum}
+            {t.chapterCrumb} {chapterNum}
           </span>
         </nav>
 
@@ -290,19 +332,19 @@ export default async function NotesChapterPage({
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-4 flex-1 min-w-0">
               <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm flex-shrink-0 border border-white/30">
-                <BookOpen className="w-8 h-8" />
+                <BookOpen className="w-8 h-8" aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-white/80">
-                  Class {classNum} • {subjectName} • Chapter {chapterNum}
+                  Class {classNum} • {subjectName} • {t.chapterCrumb}{' '}
+                  {chapterNum}
                 </p>
                 <h1 className="text-2xl md:text-3xl font-bold mt-1 break-words">
                   {chapterTitle}
                 </h1>
                 {hasNotes && (
                   <p className="text-xs text-white/70 mt-2">
-                    📚 {publishedNotes.length}{' '}
-                    {lang === 'hi' ? 'notes उपलब्ध' : 'notes available'}
+                    📚 {t.notesAvailable(publishedNotes.length)}
                   </p>
                 )}
               </div>
@@ -323,11 +365,11 @@ export default async function NotesChapterPage({
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition text-sm font-medium flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-              aria-label={`NCERT Book PDF — ${chapterTitle}`}
+              aria-label={`${t.ncertBookPdf} — ${chapterTitle}`}
             >
               <Download className="w-4 h-4" aria-hidden="true" />
-              <span className="hidden sm:inline">NCERT Book PDF</span>
-              <span className="sm:hidden">Book</span>
+              <span className="hidden sm:inline">{t.ncertBookPdf}</span>
+              <span className="sm:hidden">{t.book}</span>
             </a>
           )}
           <div className="flex-shrink-0">
@@ -364,7 +406,7 @@ export default async function NotesChapterPage({
                 className="w-5 h-5 text-emerald-600"
                 aria-hidden="true"
               />
-              Chapter Notes
+              {t.chapterNotesHeading}
             </div>
 
             <Suspense

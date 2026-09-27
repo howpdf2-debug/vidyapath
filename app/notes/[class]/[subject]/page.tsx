@@ -49,12 +49,32 @@ interface RawNote {
   content_html: string | null
 }
 
+interface ChapterPdfRow {
+  id: number
+  ncert_id: number
+  level: NoteLevel
+  pdf_url: string
+  pdf_size_kb: number | null
+}
+
 interface ChapterWithNotes {
   id: number
   chapter_num: number
   chapter_title: string | null
   book_code: string | null
   notes: RawNote[]
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Pluralization helpers
+// ═══════════════════════════════════════════════════════════════
+function pluralize(
+  n: number,
+  lang: 'hi' | 'en',
+  forms: { hi: [string, string]; en: [string, string] }
+): string {
+  const [singular, plural] = lang === 'hi' ? forms.hi : forms.en
+  return n === 1 ? singular : plural
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -122,12 +142,19 @@ function formatTime(minutes: number, lang: 'hi' | 'en'): string {
   if (!minutes || minutes < 1) {
     return lang === 'hi' ? '<1 मिनट' : '<1 min'
   }
-  return lang === 'hi' ? `${minutes} मिनट` : `${minutes} min`
+  const unit = pluralize(minutes, lang, {
+    hi: ['मिनट', 'मिनट'],
+    en: ['min', 'min'],
+  })
+  return lang === 'hi' ? `${minutes} ${unit}` : `${minutes} ${unit}`
 }
 
 function formatWords(words: number, lang: 'hi' | 'en'): string {
   const locale = lang === 'hi' ? 'hi-IN' : 'en-IN'
-  const label = lang === 'hi' ? 'शब्द' : 'words'
+  const label = pluralize(words, lang, {
+    hi: ['शब्द', 'शब्द'],
+    en: ['word', 'words'],
+  })
   return `${words.toLocaleString(locale)} ${label}`
 }
 
@@ -206,18 +233,33 @@ export default async function NotesSubjectPage({
     )
   }
 
-  // ─── 2. Fetch published notes ───
+  // ─── 2. Fetch notes + chapter PDFs (parallel) ───
   const chapterIds = chapters.map((c) => c.id)
-  const { data: rawNotes, error: notesErr } = await supabase
-    .from('chapter_notes')
-    .select(
-      'id, ncert_id, topic, level, word_count, reading_time_min, content_html'
-    )
-    .in('ncert_id', chapterIds)
-    .eq('status', 'published')
+
+  const [notesRes, pdfsRes] = await Promise.all([
+    supabase
+      .from('chapter_notes')
+      .select(
+        'id, ncert_id, topic, level, word_count, reading_time_min, content_html'
+      )
+      .in('ncert_id', chapterIds)
+      .eq('status', 'published'),
+    supabase
+      .from('chapter_level_pdfs')
+      .select('id, ncert_id, level, pdf_url, pdf_size_kb')
+      .in('ncert_id', chapterIds),
+  ])
+
+  const rawNotes = notesRes.data
+  const notesErr = notesRes.error
+  const pdfsErr = pdfsRes.error
+  const chapterPdfRows = (pdfsRes.data ?? []) as ChapterPdfRow[]
 
   if (notesErr) {
     console.error('[notes] notes fetch failed:', notesErr.message)
+  }
+  if (pdfsErr) {
+    console.error('[notes] pdfs fetch failed:', pdfsErr.message)
   }
 
   // ─── 3. Group notes by chapter ───
@@ -233,8 +275,17 @@ export default async function NotesSubjectPage({
     notes: sortNotesByLevel(notesByChapter.get(ch.id) ?? []),
   }))
 
-  // ─── 4. Level counts (for filter chips — based on ALL chapters) ───
+  // ─── 3b. Group PDFs by chapter ───
+  const pdfsByChapter = new Map<number, ChapterPdfRow[]>()
+  for (const pdf of chapterPdfRows) {
+    const arr = pdfsByChapter.get(pdf.ncert_id) ?? []
+    arr.push(pdf)
+    pdfsByChapter.set(pdf.ncert_id, arr)
+  }
+
+  // ─── 4. Level counts ───
   const levelCounts = {
+    all: allChapters.length,
     basic: allChapters.filter((c) =>
       c.notes.some((n) => n.level === 'basic')
     ).length,
@@ -246,7 +297,7 @@ export default async function NotesSubjectPage({
     ).length,
   }
 
-  // ─── 5. Apply level filter (validated) ───
+  // ─── 5. Apply level filter ───
   const isValidLevel = NOTE_LEVELS.includes(levelFilter as NoteLevel)
   let filtered = allChapters
   if (isValidLevel) {
@@ -281,15 +332,36 @@ export default async function NotesSubjectPage({
   const chaptersWithContent = allChapters.filter(
     (c) => c.notes.length > 0
   ).length
+  const chaptersWithPdfs = allChapters.filter(
+    (c) => (pdfsByChapter.get(c.id)?.length ?? 0) > 0
+  ).length
   const totalMinutes = sumReadingTime(allChapters.flatMap((c) => c.notes))
 
-  // ─── 9. i18n strings ───
+  // ─── 9. i18n strings + pluralization ───
   const t =
     lang === 'hi'
       ? {
           studyNotes: 'अध्ययन नोट्स',
-          chaptersAvailable: 'अध्याय उपलब्ध',
-          withNotes: 'नोट्स के साथ',
+          chapterCount: (n: number) =>
+            `${n} ${pluralize(n, 'hi', {
+              hi: ['अध्याय', 'अध्याय'],
+              en: ['chapter', 'chapters'],
+            })}`,
+          noteCount: (n: number) =>
+            `${n} ${pluralize(n, 'hi', {
+              hi: ['नोट', 'नोट्स'],
+              en: ['note', 'notes'],
+            })}`,
+          withNotesCount: (n: number) =>
+            pluralize(n, 'hi', {
+              hi: ['नोट के साथ', 'नोट्स के साथ'],
+              en: ['with note', 'with notes'],
+            }),
+          withPdfsCount: (n: number) =>
+            pluralize(n, 'hi', {
+              hi: ['PDF के साथ', 'PDF के साथ'],
+              en: ['with PDF', 'with PDFs'],
+            }),
           chapter: 'अध्याय',
           notes: 'नोट्स',
           comingSoon: 'जल्द आ रहा है',
@@ -305,8 +377,26 @@ export default async function NotesSubjectPage({
         }
       : {
           studyNotes: 'Study Notes',
-          chaptersAvailable: 'chapters available',
-          withNotes: 'with notes',
+          chapterCount: (n: number) =>
+            `${n} ${pluralize(n, 'en', {
+              hi: ['अध्याय', 'अध्याय'],
+              en: ['chapter', 'chapters'],
+            })} available`,
+          noteCount: (n: number) =>
+            `${n} ${pluralize(n, 'en', {
+              hi: ['नोट', 'नोट्स'],
+              en: ['note', 'notes'],
+            })}`,
+          withNotesCount: (n: number) =>
+            pluralize(n, 'en', {
+              hi: ['नोट के साथ', 'नोट्स के साथ'],
+              en: ['with note', 'with notes'],
+            }),
+          withPdfsCount: (n: number) =>
+            pluralize(n, 'en', {
+              hi: ['PDF के साथ', 'PDF के साथ'],
+              en: ['with PDF', 'with PDFs'],
+            }),
           chapter: 'Chapter',
           notes: 'notes',
           comingSoon: 'Coming soon',
@@ -361,22 +451,39 @@ export default async function NotesSubjectPage({
                 {t.studyNotes}
               </h1>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-white/85">
+                {/* Chapters count */}
                 <span className="inline-flex items-center gap-1">
                   <Layers className="w-3.5 h-3.5" aria-hidden="true" />
-                  {chapters.length} {t.chaptersAvailable}
+                  {lang === 'hi'
+                    ? t.chapterCount(chapters.length)
+                    : t.chapterCount(chapters.length)}
                 </span>
+
+                {/* Notes count */}
                 {totalNotes > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <FileText className="w-3.5 h-3.5" aria-hidden="true" />
-                    {totalNotes} {t.notes}
+                    {t.noteCount(totalNotes)}
                   </span>
                 )}
+
+                {/* With notes */}
                 {chaptersWithContent > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                    {chaptersWithContent} {t.withNotes}
+                    {chaptersWithContent} {t.withNotesCount(chaptersWithContent)}
                   </span>
                 )}
+
+                {/* With PDFs */}
+                {chaptersWithPdfs > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                    {chaptersWithPdfs} {t.withPdfsCount(chaptersWithPdfs)}
+                  </span>
+                )}
+
+                {/* Total time */}
                 {totalMinutes > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" aria-hidden="true" />
@@ -390,7 +497,7 @@ export default async function NotesSubjectPage({
         </div>
       </header>
 
-      {/* ─── Filter Bar (Suspense-wrapped for Next 15) ─── */}
+      {/* ─── Filter Bar ─── */}
       <Suspense
         fallback={
           <div className="h-12 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
@@ -400,6 +507,7 @@ export default async function NotesSubjectPage({
           levelCounts={levelCounts}
           lang={lang}
           totalCount={allChapters.length}
+          filteredCount={filtered.length}
         />
       </Suspense>
 
@@ -435,6 +543,8 @@ export default async function NotesSubjectPage({
             const href = `/notes/${classNum}/${encodeURIComponent(
               subject
             )}/${ch.chapter_num}?lang=${lang}`
+            const chapterPdfs = pdfsByChapter.get(ch.id) ?? []
+            const hasPdfs = chapterPdfs.length > 0
 
             // ─── Empty chapter ───
             if (!hasNotes) {
@@ -458,6 +568,12 @@ export default async function NotesSubjectPage({
                         <Clock className="w-3 h-3" aria-hidden="true" />
                         {t.comingSoon}
                       </span>
+                      {hasPdfs && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-200 dark:border-blue-800/60">
+                          <Download className="w-3 h-3" aria-hidden="true" />
+                          {chapterPdfs.length} PDF
+                        </span>
+                      )}
                       {pdfUrl && (
                         <a
                           href={pdfUrl}
@@ -525,12 +641,18 @@ export default async function NotesSubjectPage({
                       </span>
                     )
                   })}
+                  {hasPdfs && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-200 dark:border-blue-800/60">
+                      <Download className="w-3 h-3" aria-hidden="true" />
+                      {chapterPdfs.length} PDF
+                    </span>
+                  )}
                 </div>
 
                 <div className="px-4 sm:px-5 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
                   <span className="inline-flex items-center gap-1">
                     <FileText className="w-3 h-3" aria-hidden="true" />
-                    {ch.notes.length} {t.notes}
+                    {t.noteCount(ch.notes.length)}
                   </span>
                   {totalMinutesCh > 0 && (
                     <span className="inline-flex items-center gap-1">

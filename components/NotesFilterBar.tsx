@@ -42,10 +42,9 @@ const SORT_OPTIONS = [
 ] as const
 
 type SortValue = typeof SORT_OPTIONS[number]['value']
-const SORT_VALUES = SORT_OPTIONS.map((o) => o.value) as readonly SortValue[]
 const DEFAULT_SORT: SortValue = 'chapter'
 
-// ─── Level labels + gradients (fixes "Pro Advance" bug) ───
+// ─── Level labels + gradients ───
 const LEVEL_UI: Record<
   NoteLevel,
   {
@@ -99,23 +98,26 @@ export function NotesFilterBar({
   const currentSort = (sp.get('sort') ?? DEFAULT_SORT) as SortValue
   const currentQ = sp.get('q') ?? ''
 
-  // ─── S1: Sync search input with URL (back/forward fix) ───
+  // ─── Sync search input with URL (back/forward fix) ───
   const [searchValue, setSearchValue] = useState(currentQ)
   useEffect(() => {
     setSearchValue(currentQ)
   }, [currentQ])
 
-  // ─── S3: Cleanup debounce on unmount ───
+  // ─── Cleanup debounce on unmount ───
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
 
-  // ─── U17: Esc to clear search ───
+  // ─── Esc to clear search ───
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+      if (
+        e.key === 'Escape' &&
+        document.activeElement === searchInputRef.current
+      ) {
         setSearchValue('')
         if (debounceRef.current) clearTimeout(debounceRef.current)
         pushParams({ q: '' })
@@ -126,7 +128,7 @@ export function NotesFilterBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ─── S4: Safe param updater ───
+  // ─── Safe param updater ───
   const pushParams = useCallback(
     (updates: Record<string, string>) => {
       const next = new URLSearchParams(sp.toString())
@@ -153,7 +155,7 @@ export function NotesFilterBar({
     [pushParams]
   )
 
-  // ─── S3: Debounced search ───
+  // ─── Debounced search ───
   const handleSearchChange = (value: string) => {
     setSearchValue(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -181,7 +183,7 @@ export function NotesFilterBar({
     })
   }
 
-  // ─── D6: hasActiveFilter ignores empty q ───
+  // ─── Active filter detection ───
   const hasActiveFilter =
     currentLevel !== 'all' ||
     currentSort !== DEFAULT_SORT ||
@@ -195,8 +197,6 @@ export function NotesFilterBar({
           searchPlaceholder: 'अध्याय या विषय खोजें...',
           clear: 'साफ़ करें',
           all: 'सभी',
-          showing: 'दिखा रहे हैं',
-          of: 'में से',
         }
       : {
           filter: 'Level',
@@ -204,8 +204,6 @@ export function NotesFilterBar({
           searchPlaceholder: 'Search chapters or topics...',
           clear: 'Clear',
           all: 'All',
-          showing: 'Showing',
-          of: 'of',
         }
 
   const showFilteredCount =
@@ -236,7 +234,6 @@ export function NotesFilterBar({
             className="w-full pl-12 pr-12 py-3 text-sm font-medium rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white dark:focus:bg-gray-900 transition-all placeholder:text-gray-400 dark:placeholder:text-gray-500"
             aria-label={t.searchPlaceholder}
           />
-          {/* ─── U15: Single clear button; loading spinner when pending ─── */}
           {isPending && searchValue ? (
             <div className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5">
               <Loader2
@@ -259,15 +256,35 @@ export function NotesFilterBar({
           ) : null}
         </div>
 
-        {/* ─── U11: Filter feedback ─── */}
+        {/* ─── Filter feedback (fixed Hindi word order + aria-live) ─── */}
         {showFilteredCount && (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {t.showing}{' '}
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">
-              {filteredCount}
-            </span>{' '}
-            {t.of}{' '}
-            <span className="font-semibold">{totalCount}</span>
+          <p
+            className="mt-2 text-xs text-gray-500 dark:text-gray-400"
+            aria-live="polite"
+          >
+            {lang === 'hi' ? (
+              <>
+                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  {totalCount}
+                </span>{' '}
+                में से{' '}
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                  {filteredCount}
+                </span>{' '}
+                दिखा रहे हैं
+              </>
+            ) : (
+              <>
+                Showing{' '}
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                  {filteredCount}
+                </span>{' '}
+                of{' '}
+                <span className="font-semibold text-gray-700 dark:text-gray-300 tabular-nums">
+                  {totalCount}
+                </span>
+              </>
+            )}
           </p>
         )}
       </div>
@@ -282,11 +299,7 @@ export function NotesFilterBar({
           {t.filter}
         </div>
 
-        <div
-          role="group"
-          aria-label={t.filter}
-          className="flex flex-wrap gap-2"
-        >
+        <div role="group" aria-label={t.filter} className="flex flex-wrap gap-2">
           {/* ─── All chip ─── */}
           <button
             type="button"
@@ -331,7 +344,6 @@ export function NotesFilterBar({
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 hover:scale-[1.02]'
                 }`}
               >
-                {/* ─── U3: Fixed emoji size for consistent rendering ─── */}
                 <span
                   className="inline-flex items-center justify-center text-base leading-none"
                   style={{ fontSize: '16px', lineHeight: 1 }}
@@ -358,11 +370,7 @@ export function NotesFilterBar({
             {t.sort}
           </div>
 
-          <div
-            role="group"
-            aria-label={t.sort}
-            className="flex flex-wrap gap-2"
-          >
+          <div role="group" aria-label={t.sort} className="flex flex-wrap gap-2">
             {SORT_OPTIONS.map((opt) => {
               const Icon = opt.icon
               const active = currentSort === opt.value
@@ -402,7 +410,7 @@ export function NotesFilterBar({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Sub-component: CountBadge (S6 fix — safe undefined)
+// Sub-component: CountBadge
 // ═══════════════════════════════════════════════════════════════
 function CountBadge({ count, active }: { count: number; active: boolean }) {
   return (
