@@ -7,6 +7,7 @@ import {
   LayoutDashboard, FileText, FileImage, Video, BookOpen,
   GraduationCap, Newspaper, Users, BarChart3, Settings,
   Wrench, X, ChevronLeft, ChevronRight, Home, HelpCircle,
+  Layers,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -28,9 +29,10 @@ const NAV_SECTIONS = [
     title: 'Content',
     items: [
       { href: '/admin/notes', label: 'Notes', icon: FileText },
-      { href: '/admin/pdfs', label: 'PDFs', icon: FileImage },
+      { href: '/admin/pdfs', label: 'Note PDFs', icon: FileImage },
+      { href: '/admin/chapter-pdfs', label: 'Chapter PDFs', icon: Layers },
       { href: '/admin/videos', label: 'Videos', icon: Video },
-      { href: '/admin/faqs', label: 'FAQs', icon: HelpCircle },        // ✅ Added
+      { href: '/admin/faqs', label: 'FAQs', icon: HelpCircle },
       { href: '/admin/ncert', label: 'NCERT', icon: BookOpen },
       { href: '/admin/competitive-exams', label: 'Exams', icon: GraduationCap },
       { href: '/admin/rojgar-samachar', label: 'Rojgar', icon: Newspaper },
