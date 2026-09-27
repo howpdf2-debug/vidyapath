@@ -10,6 +10,7 @@ import {
   ArrowLeft, Trash2, Edit, PlusCircle, Search, X,
   Save, AlertCircle, FileText, Languages,
   Copy, Eye, Filter, AlertTriangle, Loader2,
+  Sparkles, Info,
 } from 'lucide-react'
 import 'react-quill-new/dist/quill.snow.css'
 import PdfUploadField from '@/components/admin/PdfUploadField'
@@ -17,7 +18,7 @@ import PdfUploadField from '@/components/admin/PdfUploadField'
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false })
 
 // ═══════════════════════════════════════════════════════
-// ✅ Display-time cleanup (backup safety)
+// Display-time cleanup (backup safety)
 // ═══════════════════════════════════════════════════════
 function cleanNoteHtml(html: string): string {
   if (!html) return ''
@@ -39,6 +40,55 @@ function cleanNoteHtml(html: string): string {
       .replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, '')
   }
   return result.trim()
+}
+
+// ═══════════════════════════════════════════════════════
+// [Phase 5B] Robust empty HTML check
+// Catches: '', '<p></p>', '<p> </p>', '<p><br></p>', zero-width
+// ═══════════════════════════════════════════════════════
+function isEmptyHtml(html: string): boolean {
+  if (!html) return true
+  const stripped = html
+    .replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, '')
+    .replace(/<p>\s*<\/p>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim()
+  return stripped.length === 0
+}
+
+// ═══════════════════════════════════════════════════════
+// Level ordering for difficulty preview (Phase 5B)
+// ═══════════════════════════════════════════════════════
+const LEVEL_ORDER: Record<'basic' | 'advance' | 'pro', number> = {
+  basic: 0,
+  advance: 1,
+  pro: 2,
+}
+
+const LEVEL_UI: Record<
+  'basic' | 'advance' | 'pro',
+  { emoji: string; label: string; badgeClass: string }
+> = {
+  basic: {
+    emoji: '🟢',
+    label: 'Basic',
+    badgeClass:
+      'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+  },
+  advance: {
+    emoji: '🟠',
+    label: 'Advance',
+    badgeClass:
+      'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  },
+  pro: {
+    emoji: '🔴',
+    label: 'Pro',
+    badgeClass:
+      'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300',
+  },
 }
 
 // ═══════════════════════════════════════════════════════
@@ -65,15 +115,18 @@ interface NoteRow {
     class: number
     subject: string
     chapter_num: number
-    chapter_title: string
+    chapter_title: string | null
     language: string
   } | null
 }
 
+// [Phase 5B] Added id + chapter_title
 interface ChapterOpt {
+  id: number
   class: number
   subject: string
   chapter_num: number
+  chapter_title: string | null
   language: string
 }
 
@@ -92,6 +145,7 @@ interface FormState {
   status: 'draft' | 'published' | 'archived'
 }
 
+// [Phase 5B] Status default 'draft' (was 'published') — prevents accidental live
 const INITIAL_FORM: FormState = {
   class: '',
   subject: '',
@@ -104,12 +158,14 @@ const INITIAL_FORM: FormState = {
   pdf_url: null,
   pdf_size_kb: null,
   level: 'basic',
-  status: 'published',
+  status: 'draft',
 }
 
 const MAX_TOPIC_LENGTH = 300
 const MAX_CONTENT_LENGTH = 500_000
 const AUTOSAVE_KEY = 'vidyapath-admin-notes-draft'
+const AUTOSAVE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+const DRAFT_TOAST_MS = 5000
 
 // ═══════════════════════════════════════════════════════
 // PAGE
@@ -134,11 +190,15 @@ export default function AdminNotes() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [htmlMode, setHtmlMode] = useState(false)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const initialFormRef = useRef<string>(JSON.stringify(INITIAL_FORM))
 
+  // ═══════════════════════════════════════════════════════
+  // [S5, S6] Restore draft first, then fetch — avoids race
+  // ═══════════════════════════════════════════════════════
   useEffect(() => {
+    restoreDraft()
     fetchNotes()
     fetchChapters()
-    restoreDraft()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -147,18 +207,61 @@ export default function AdminNotes() {
     return () => clearTimeout(timer)
   }, [search])
 
+  // ═══════════════════════════════════════════════════════
+  // [D6, S6] Autosave: skip when editing existing note, add timestamp
+  // ═══════════════════════════════════════════════════════
   useEffect(() => {
-    if (!form.topic && !form.content_html && !editingId) return
+    // Don't autosave while editing existing note — avoids overwriting new drafts
+    if (editingId) return
+    if (!form.topic && isEmptyHtml(form.content_html)) return
+
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     autosaveTimer.current = setTimeout(() => {
       try {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(form))
+        localStorage.setItem(
+          AUTOSAVE_KEY,
+          JSON.stringify({ ...form, _ts: Date.now() })
+        )
       } catch {}
     }, 1500)
+
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
   }, [form, editingId])
+
+  // ═══════════════════════════════════════════════════════
+  // [U6, D8] Unsaved changes warning
+  // ═══════════════════════════════════════════════════════
+  const hasUnsavedChanges = useMemo(() => {
+    const current = JSON.stringify(form)
+    return current !== initialFormRef.current && !saving
+  }, [form, saving])
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasUnsavedChanges])
+
+  // ═══════════════════════════════════════════════════════
+  // [U9] Auto-open filters when active
+  // ═══════════════════════════════════════════════════════
+  const hasActiveFilters = !!(
+    classFilter ||
+    difficultyFilter ||
+    levelFilter ||
+    search
+  )
+
+  useEffect(() => {
+    if (hasActiveFilters) setShowFilters(true)
+  }, [hasActiveFilters])
 
   // ═══════════════════════════════════════════════════════
   // FETCH
@@ -181,10 +284,11 @@ export default function AdminNotes() {
     }
   }
 
+  // [S1, S2] Fetch id + chapter_title for difficulty preview
   const fetchChapters = async () => {
     const { data, error } = await supabase
       .from('ncert')
-      .select('class, subject, chapter_num, language')
+      .select('id, class, subject, chapter_num, chapter_title, language')
       .gte('class', 6)
       .lte('class', 12)
       .order('class')
@@ -202,8 +306,16 @@ export default function AdminNotes() {
     try {
       const raw = localStorage.getItem(AUTOSAVE_KEY)
       if (!raw) return
-      const draft = JSON.parse(raw) as FormState
-      if (!draft.topic && !draft.content_html) return
+      const draft = JSON.parse(raw) as FormState & { _ts?: number }
+
+      // [S6] Stale check — discard drafts older than 7 days
+      if (draft._ts && Date.now() - draft._ts > AUTOSAVE_MAX_AGE_MS) {
+        localStorage.removeItem(AUTOSAVE_KEY)
+        return
+      }
+
+      if (!draft.topic && isEmptyHtml(draft.content_html || '')) return
+
       setForm({ ...INITIAL_FORM, ...draft })
       toast(
         (t) => (
@@ -221,13 +333,15 @@ export default function AdminNotes() {
             </button>
           </div>
         ),
-        { duration: 8000 }
+        { duration: DRAFT_TOAST_MS }
       )
     } catch {}
   }
 
   const clearDraft = () => {
-    try { localStorage.removeItem(AUTOSAVE_KEY) } catch {}
+    try {
+      localStorage.removeItem(AUTOSAVE_KEY)
+    } catch {}
   }
 
   // ═══════════════════════════════════════════════════════
@@ -249,6 +363,89 @@ export default function AdminNotes() {
   }
 
   // ═══════════════════════════════════════════════════════
+  // [U2, C1] Compute preview chapter difficulty (Phase 5B)
+  // Shows admin what the chapter difficulty will be after save
+  // ═══════════════════════════════════════════════════════
+  const selectedChapter = useMemo(() => {
+    if (!form.class || !form.subject || !form.chapter_num) return null
+    const cls = parseInt(form.class, 10)
+    const chNum = parseInt(form.chapter_num, 10)
+    return (
+      chapters.find(
+        (c) =>
+          c.class === cls &&
+          c.subject === form.subject &&
+          c.chapter_num === chNum &&
+          c.language === form.language
+      ) || null
+    )
+  }, [chapters, form.class, form.subject, form.chapter_num, form.language])
+
+  const previewChapterDifficulty = useMemo<'basic' | 'advance' | 'pro' | null>(
+    () => {
+      if (!selectedChapter) return null
+
+      // Find existing published notes for this chapter (from loaded notes list)
+      const chapterNotes = notes.filter(
+        (n) =>
+          n.ncert?.class === selectedChapter.class &&
+          n.ncert?.subject === selectedChapter.subject &&
+          n.ncert?.chapter_num === selectedChapter.chapter_num &&
+          n.ncert?.language === selectedChapter.language &&
+          n.status === 'published' &&
+          n.id !== editingId // exclude currently-edited note
+      )
+
+      const levels: number[] = chapterNotes.map((n) => LEVEL_ORDER[n.level] ?? 99)
+
+      // If current form will save as published, include its level
+      if (form.status === 'published' && LEVEL_ORDER[form.level] !== undefined) {
+        levels.push(LEVEL_ORDER[form.level])
+      }
+
+      if (levels.length === 0) return null
+      const minIdx = Math.min(...levels)
+      return (['basic', 'advance', 'pro'] as const)[minIdx] ?? null
+    },
+    [selectedChapter, notes, editingId, form.status, form.level]
+  )
+
+  // ═══════════════════════════════════════════════════════
+  // [S3, S4] Sanitize payload — parseInt for numeric fields
+  // ═══════════════════════════════════════════════════════
+  const buildPayload = () => ({
+    class: parseInt(form.class, 10),
+    subject: form.subject,
+    chapter_num: parseInt(form.chapter_num, 10),
+    language: form.language,
+    topic: form.topic.trim(),
+    difficulty_level: form.difficulty_level,
+    content_html: form.content_html,
+    order_index: form.order_index,
+    pdf_url: form.pdf_url,
+    pdf_size_kb: form.pdf_size_kb,
+    level: form.level,
+    status: form.status,
+  })
+
+  // ═══════════════════════════════════════════════════════
+  // [U3] Duplicate topic check (D1)
+  // ═══════════════════════════════════════════════════════
+  const hasDuplicateTopic = useMemo(() => {
+    if (!form.topic.trim() || !selectedChapter) return false
+    const topicNorm = form.topic.trim().toLowerCase()
+    return notes.some(
+      (n) =>
+        n.id !== editingId &&
+        n.ncert?.class === selectedChapter.class &&
+        n.ncert?.subject === selectedChapter.subject &&
+        n.ncert?.chapter_num === selectedChapter.chapter_num &&
+        n.ncert?.language === selectedChapter.language &&
+        n.topic.trim().toLowerCase() === topicNorm
+    )
+  }, [notes, form.topic, selectedChapter, editingId])
+
+  // ═══════════════════════════════════════════════════════
   // HANDLERS
   // ═══════════════════════════════════════════════════════
   const handleSubmit = async (e: React.FormEvent) => {
@@ -258,28 +455,25 @@ export default function AdminNotes() {
       toast.error('Topic required')
       return
     }
-    if (!form.content_html.trim() || form.content_html === '<p><br></p>') {
+    // [S7, D10] Robust empty HTML check
+    if (isEmptyHtml(form.content_html)) {
       toast.error('Content required')
+      return
+    }
+    // [C6, S11] Content size pre-check
+    if (form.content_html.length > MAX_CONTENT_LENGTH) {
+      toast.error('Content too large (max 500 KB)')
+      return
+    }
+    // [D1] Duplicate warning
+    if (hasDuplicateTopic) {
+      toast.error('Same topic already exists in this chapter')
       return
     }
 
     setSaving(true)
 
-    const payload = {
-      class: form.class,
-      subject: form.subject,
-      chapter_num: form.chapter_num,
-      language: form.language,
-      topic: form.topic.trim(),
-      difficulty_level: form.difficulty_level,
-      content_html: form.content_html,
-      order_index: form.order_index,
-      pdf_url: form.pdf_url,
-      pdf_size_kb: form.pdf_size_kb,
-      level: form.level,
-      status: form.status,
-    }
-
+    const payload = buildPayload()
     const method = editingId ? 'PUT' : 'POST'
     const body = editingId ? { ...payload, id: editingId } : payload
 
@@ -292,21 +486,28 @@ export default function AdminNotes() {
       const result = await res.json()
 
       if (res.ok) {
-        if (
-          editingId &&
-          originalPdfUrl &&
-          originalPdfUrl !== form.pdf_url
-        ) {
+        if (editingId && originalPdfUrl && originalPdfUrl !== form.pdf_url) {
           await deletePdfFromStorage(originalPdfUrl)
         }
 
-        toast.success(editingId ? 'Note updated!' : 'Note added!')
+        // [U8] Better success message with difficulty feedback
+        const difficultyMsg = previewChapterDifficulty
+          ? `Chapter difficulty: ${LEVEL_UI[previewChapterDifficulty].label}`
+          : ''
+        toast.success(
+          editingId
+            ? `Note updated! ${difficultyMsg}`
+            : `Note added! ${difficultyMsg}`
+        )
+
         setForm(INITIAL_FORM)
         setEditingId(null)
         setOriginalPdfUrl(null)
         setShowPreview(false)
+        setHtmlMode(false)
         clearDraft()
-        fetchNotes()
+        // [S9, D11] Refetch chapters to refresh difficulty (Phase 5B)
+        await Promise.all([fetchNotes(), fetchChapters()])
       } else {
         toast.error(result.error || 'Failed to save note')
 
@@ -322,6 +523,14 @@ export default function AdminNotes() {
   }
 
   const editNote = (n: NoteRow) => {
+    if (hasUnsavedChanges) {
+      if (
+        !confirm(
+          'Unsaved changes will be lost. Continue editing this note?'
+        )
+      )
+        return
+    }
     setEditingId(n.id)
     setOriginalPdfUrl(n.pdf_url || null)
     setForm({
@@ -336,13 +545,16 @@ export default function AdminNotes() {
       pdf_url: n.pdf_url || null,
       pdf_size_kb: n.pdf_size_kb || null,
       level: n.level || 'basic',
-      status: n.status || 'published',
+      status: n.status || 'draft',
     })
     setHtmlMode(/<[a-z][\s\S]*>/i.test(n.content_html || ''))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const duplicateNote = (n: NoteRow) => {
+    if (hasUnsavedChanges) {
+      if (!confirm('Unsaved changes will be lost. Continue duplicating?')) return
+    }
     setEditingId(null)
     setOriginalPdfUrl(null)
     setForm({
@@ -382,6 +594,14 @@ export default function AdminNotes() {
         toast.success('Note deleted')
         setNotes((prev) => prev.filter((n) => n.id !== id))
         setDeleteTarget(null)
+        // [D7] Clear editing state if deleting the note being edited
+        if (editingId === id) {
+          setEditingId(null)
+          setOriginalPdfUrl(null)
+          setForm(INITIAL_FORM)
+        }
+        // [S9] Refresh chapters (difficulty might change)
+        fetchChapters()
       } else {
         toast.error(result.error || 'Delete failed')
       }
@@ -393,6 +613,10 @@ export default function AdminNotes() {
   }
 
   const cancelEdit = async () => {
+    // [C7] Confirm before discarding unsaved changes
+    if (hasUnsavedChanges) {
+      if (!confirm('Discard unsaved changes?')) return
+    }
     if (editingId && form.pdf_url && form.pdf_url !== originalPdfUrl) {
       await deletePdfFromStorage(form.pdf_url)
     }
@@ -400,6 +624,7 @@ export default function AdminNotes() {
     setOriginalPdfUrl(null)
     setForm(INITIAL_FORM)
     setShowPreview(false)
+    setHtmlMode(false) // [S8]
   }
 
   // ═══════════════════════════════════════════════════════
@@ -466,12 +691,6 @@ export default function AdminNotes() {
     })
   }, [notes, debouncedSearch, classFilter, difficultyFilter, levelFilter, sortBy])
 
-  const hasActiveFilters = !!(
-    classFilter ||
-    difficultyFilter ||
-    levelFilter ||
-    search
-  )
   const topicLength = form.topic.length
   const contentLength = form.content_html.length
 
@@ -586,9 +805,20 @@ export default function AdminNotes() {
               >
                 <option value="">Select</option>
                 {chaptersForSubject.map((ch) => (
-                  <option key={ch.chapter_num} value={ch.chapter_num}>Ch {ch.chapter_num}</option>
+                  <option key={ch.id} value={ch.chapter_num}>
+                    Ch {ch.chapter_num}
+                    {ch.chapter_title ? ` — ${ch.chapter_title}` : ''}
+                  </option>
                 ))}
               </select>
+              {/* [D2] Hint when no chapters in current language */}
+              {form.subject && chaptersForSubject.length === 0 && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                  ⚠️ No chapters in{' '}
+                  <strong>{form.language === 'hi' ? 'हिंदी' : 'English'}</strong>{' '}
+                  for this subject. Try switching language.
+                </p>
+              )}
             </Field>
 
             <Field label={<span className="inline-flex items-center gap-1"><Languages className="w-3.5 h-3.5" /> Language</span>}>
@@ -605,41 +835,85 @@ export default function AdminNotes() {
             </Field>
           </div>
 
+          {/* [U2] PHASE 5B: Auto-difficulty preview card */}
+          {selectedChapter && (
+            <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border border-emerald-200 dark:border-emerald-800/50">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <Sparkles
+                    className="w-4 h-4 text-emerald-600 dark:text-emerald-400"
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-emerald-700 dark:text-emerald-400">
+                    Chapter Difficulty (auto-computed)
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {previewChapterDifficulty ? (
+                      <span
+                        className={`text-sm font-bold px-2.5 py-1 rounded-full ${LEVEL_UI[previewChapterDifficulty].badgeClass}`}
+                      >
+                        {LEVEL_UI[previewChapterDifficulty].emoji}{' '}
+                        {LEVEL_UI[previewChapterDifficulty].label}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-slate-500 dark:text-slate-400 italic">
+                        No published notes yet
+                      </span>
+                    )}
+                    {form.status !== 'published' && (
+                      <span className="text-[10px] text-slate-500">
+                        (note is {form.status} — won&apos;t affect difficulty)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1.5">
+                    Chapter difficulty = <strong>minimum level</strong> among all
+                    published notes. Basic &lt; Advance &lt; Pro. Auto-updated by
+                    database trigger.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Row 1.5 — Level + Status */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field
               label={
                 <span className="inline-flex items-center gap-1">
-                  <FileText className="w-3.5 h-3.5" /> Level *
+                  <FileText className="w-3.5 h-3.5" /> Content Level *
                 </span>
               }
             >
-              <div className="grid grid-cols-3 gap-2">
-                {(['basic', 'advance', 'pro'] as const).map((lvl) => {
-                  const labels = {
-                    basic: { emoji: '🟢', label: 'Basic' },
-                    advance: { emoji: '🟠', label: 'Advance' },
-                    pro: { emoji: '🔴', label: 'Pro' },
-                  }[lvl]
-                  const active = form.level === lvl
-                  return (
-                    <button
-                      key={lvl}
-                      type="button"
-                      onClick={() => setForm({ ...form, level: lvl })}
-                      aria-pressed={active}
-                      className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 transition text-xs font-semibold ${
-                        active
-                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      <span className="text-base">{labels.emoji}</span>
-                      <span>{labels.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
+              <fieldset>
+                <legend className="sr-only">Content Level</legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['basic', 'advance', 'pro'] as const).map((lvl) => {
+                    const ui = LEVEL_UI[lvl]
+                    const active = form.level === lvl
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => setForm({ ...form, level: lvl })}
+                        aria-pressed={active}
+                        className={`flex flex-col items-center justify-center gap-1 min-h-[56px] px-2 py-2.5 rounded-xl border-2 transition text-xs font-semibold ${
+                          active
+                            ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 scale-105 shadow-md'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400 hover:scale-[1.02]'
+                        }`}
+                      >
+                        <span className="text-lg leading-none" aria-hidden="true">
+                          {ui.emoji}
+                        </span>
+                        <span>{ui.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </fieldset>
             </Field>
 
             <Field label="Status">
@@ -657,6 +931,11 @@ export default function AdminNotes() {
                 <option value="published">✅ Published</option>
                 <option value="archived">📦 Archived</option>
               </select>
+              {form.status !== 'published' && (
+                <p className="text-[11px] text-slate-500 mt-1">
+                  💡 Only <strong>published</strong> notes affect chapter difficulty.
+                </p>
+              )}
             </Field>
           </div>
 
@@ -666,7 +945,13 @@ export default function AdminNotes() {
               label={
                 <span className="flex items-center justify-between">
                   <span>Topic *</span>
-                  <span className={`text-[10px] font-mono ${topicLength > MAX_TOPIC_LENGTH * 0.9 ? 'text-red-600' : 'text-slate-400'}`}>
+                  <span
+                    className={`text-[10px] font-mono ${
+                      topicLength > MAX_TOPIC_LENGTH * 0.9
+                        ? 'text-red-600'
+                        : 'text-slate-400'
+                    }`}
+                  >
                     {topicLength}/{MAX_TOPIC_LENGTH}
                   </span>
                 </span>
@@ -681,13 +966,22 @@ export default function AdminNotes() {
                 required
                 maxLength={MAX_TOPIC_LENGTH}
               />
+              {/* [D1] Duplicate warning */}
+              {hasDuplicateTopic && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                  ⚠️ Same topic exists in this chapter
+                </p>
+              )}
             </Field>
 
-            <Field label="Difficulty">
+            <Field label="Per-Note Difficulty (legacy)">
               <select
                 value={form.difficulty_level}
                 onChange={(e) =>
-                  setForm({ ...form, difficulty_level: e.target.value as 'easy' | 'medium' | 'hard' })
+                  setForm({
+                    ...form,
+                    difficulty_level: e.target.value as 'easy' | 'medium' | 'hard',
+                  })
                 }
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition"
               >
@@ -695,6 +989,9 @@ export default function AdminNotes() {
                 <option value="medium">🟡 Medium</option>
                 <option value="hard">🔴 Hard</option>
               </select>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Legacy field. Chapter difficulty content level se aati hai.
+              </p>
             </Field>
 
             <Field label="Order (lower = first)">
@@ -708,6 +1005,9 @@ export default function AdminNotes() {
                 }
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition"
               />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Same order wale notes topic ke hisaab se sort honge.
+              </p>
             </Field>
           </div>
 
@@ -716,7 +1016,13 @@ export default function AdminNotes() {
             label={
               <span className="flex items-center justify-between gap-2">
                 <span>Notes Content (HTML) *</span>
-                <span className={`text-[10px] font-mono ${contentLength > MAX_CONTENT_LENGTH * 0.9 ? 'text-red-600' : 'text-slate-400'}`}>
+                <span
+                  className={`text-[10px] font-mono ${
+                    contentLength > MAX_CONTENT_LENGTH * 0.9
+                      ? 'text-red-600'
+                      : 'text-slate-400'
+                  }`}
+                >
                   {contentLength.toLocaleString()}/{MAX_CONTENT_LENGTH.toLocaleString()}
                 </span>
               </span>
@@ -828,6 +1134,13 @@ export default function AdminNotes() {
                 Cancel
               </button>
             )}
+
+            {hasUnsavedChanges && (
+              <span className="inline-flex items-center gap-1 self-center text-xs text-amber-600 dark:text-amber-400">
+                <Info className="w-3.5 h-3.5" />
+                Unsaved changes
+              </span>
+            )}
           </div>
         </form>
       </div>
@@ -907,7 +1220,9 @@ export default function AdminNotes() {
             <Field label="Sort">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'topic')}
+                onChange={(e) =>
+                  setSortBy(e.target.value as 'newest' | 'oldest' | 'topic')
+                }
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
               >
                 <option value="newest">Newest</option>
@@ -921,7 +1236,10 @@ export default function AdminNotes() {
         {loading ? (
           <div className="space-y-3 py-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="animate-pulse h-24 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+              <div
+                key={i}
+                className="animate-pulse h-24 bg-slate-100 dark:bg-slate-800 rounded-xl"
+              />
             ))}
           </div>
         ) : filteredNotes.length === 0 ? (
@@ -952,26 +1270,14 @@ export default function AdminNotes() {
                         Class {n.ncert?.class} • {n.ncert?.subject} • Ch {n.ncert?.chapter_num}
                       </span>
 
-                      {/* ✅ Level badge */}
                       {n.level && (
                         <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            n.level === 'basic'
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                              : n.level === 'advance'
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
-                          }`}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${LEVEL_UI[n.level].badgeClass}`}
                         >
-                          {n.level === 'basic'
-                            ? '🟢 Basic'
-                            : n.level === 'advance'
-                            ? '🟠 Advance'
-                            : '🔴 Pro'}
+                          {LEVEL_UI[n.level].emoji} {LEVEL_UI[n.level].label}
                         </span>
                       )}
 
-                      {/* ✅ Status badge */}
                       {n.status === 'draft' && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                           📝 Draft
@@ -983,7 +1289,6 @@ export default function AdminNotes() {
                         </span>
                       )}
 
-                      {/* Difficulty badge */}
                       <span
                         className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                           n.difficulty_level === 'easy'
@@ -1017,7 +1322,9 @@ export default function AdminNotes() {
                       </p>
                     )}
                     <p className="text-xs text-slate-400 mt-1">
-                      Order: {n.order_index} • {new Date(n.created_at).toLocaleDateString('en-IN')} • {Math.ceil((n.content_length || 0) / 1024)} KB
+                      Order: {n.order_index} •{' '}
+                      {new Date(n.created_at).toLocaleDateString('en-IN')} •{' '}
+                      {Math.ceil((n.content_length || 0) / 1024)} KB
                       {n.word_count ? ` • ${n.word_count} words` : ''}
                       {n.reading_time_min ? ` • ~${n.reading_time_min} min` : ''}
                     </p>
@@ -1061,6 +1368,8 @@ export default function AdminNotes() {
         <div
           role="dialog"
           aria-modal="true"
+          aria-labelledby="delete-modal-title"
+          aria-describedby="delete-modal-desc"
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 modal-backdrop"
           onClick={(e) => {
             if (e.target === e.currentTarget) setDeleteTarget(null)
@@ -1072,10 +1381,16 @@ export default function AdminNotes() {
                 <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
+                <h3
+                  id="delete-modal-title"
+                  className="text-lg font-bold text-slate-900 dark:text-white mb-1"
+                >
                   Delete Note?
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p
+                  id="delete-modal-desc"
+                  className="text-sm text-slate-600 dark:text-slate-400"
+                >
                   यह action undo नहीं हो सकता। PDF भी delete हो जाएगा।
                 </p>
               </div>
@@ -1083,7 +1398,8 @@ export default function AdminNotes() {
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 mb-5">
               <p className="text-xs uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400 mb-1">
-                Class {deleteTarget.ncert?.class} • {deleteTarget.ncert?.subject} • Ch {deleteTarget.ncert?.chapter_num}
+                Class {deleteTarget.ncert?.class} • {deleteTarget.ncert?.subject} • Ch{' '}
+                {deleteTarget.ncert?.chapter_num}
               </p>
               <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                 {deleteTarget.topic}
